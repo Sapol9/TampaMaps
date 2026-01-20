@@ -1,0 +1,10 @@
+{
+  "tampa": {
+    "id": "tampa",
+    "name": "Tampa",
+    "displayName": "Tampa Bay",
+    "lat": 27.9506,
+    "lng": -82.4572,
+    "zoom": 12
+  }
+}

@@ -66,6 +66,9 @@ export default function Home() {
   // Step 6: Detail line
   const [detailLineType, setDetailLineType] = useState<DetailLineType>("coordinates");
 
+  // Personal note for back of canvas
+  const [personalNote, setPersonalNote] = useState("");
+
   // Map preview state
   const [showSafeZone, setShowSafeZone] = useState(true);
 
@@ -142,6 +145,7 @@ export default function Home() {
       lat: focusPoint?.lat ?? selectedLocation.lat,
       lng: focusPoint?.lng ?? selectedLocation.lng,
       orientation,
+      personalNote: personalNote || undefined,
       price: 94.0,
       thumbnail,
     };
@@ -184,6 +188,7 @@ export default function Home() {
     } else {
       setFocusPoint(null);
     }
+    setPersonalNote(item.personalNote || "");
     // Go to last step and close cart
     setCurrentStep(6);
     setCompletedSteps([1, 2, 3, 4, 5, 6]);
@@ -392,6 +397,8 @@ export default function Home() {
                       onAddToCart={handleAddToCart}
                       isComplete={isDesignComplete}
                       orientation={orientation}
+                      personalNote={personalNote}
+                      onPersonalNoteChange={setPersonalNote}
                     />
                   </div>
                 </div>

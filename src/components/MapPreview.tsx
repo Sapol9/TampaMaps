@@ -226,6 +226,19 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
     }
   }, [focusPoint, theme.colors.text, isLoading]);
 
+  // Handle orientation changes - resize map and recenter
+  useEffect(() => {
+    if (!map.current || isLoading) return;
+
+    // Trigger map resize after orientation change
+    setTimeout(() => {
+      map.current?.resize();
+      // Recenter to maintain focus
+      map.current?.setCenter(actualCenter);
+      map.current?.setZoom(zoom);
+    }, 100);
+  }, [orientation, isLoading]);
+
   // Capture the full preview including text overlay using html2canvas
   const captureImage = useCallback(async (): Promise<string | null> => {
     if (!previewContainer.current) return null;
@@ -418,7 +431,7 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
         )}
 
         {/* Safe zone overlay */}
-        <SafeZoneOverlay visible={showSafeZone} />
+        <SafeZoneOverlay visible={showSafeZone} orientation={orientation} />
       </div>
 
       {/* Safe zone toggle */}

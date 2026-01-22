@@ -15,6 +15,7 @@ export interface CartItem {
   lat: number;
   lng: number;
   orientation: Orientation;
+  personalNote?: string;
   price: number;
   thumbnail?: string; // Base64 data URL of map preview
 }

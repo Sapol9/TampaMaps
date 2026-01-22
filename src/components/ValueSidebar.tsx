@@ -8,16 +8,29 @@ interface ValueSidebarProps {
   onAddToCart: () => void;
   isComplete: boolean;
   orientation?: Orientation;
+  personalNote?: string;
+  onPersonalNoteChange?: (note: string) => void;
 }
+
+const MAX_NOTE_LENGTH = 200;
 
 export default function ValueSidebar({
   price,
   onAddToCart,
   isComplete,
   orientation = "portrait",
+  personalNote = "",
+  onPersonalNoteChange,
 }: ValueSidebarProps) {
   const dimensions = orientation === "landscape" ? "24\" × 18\"" : "18\" × 24\"";
   const [showBackPreview, setShowBackPreview] = useState(false);
+
+  const handleNoteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    if (value.length <= MAX_NOTE_LENGTH) {
+      onPersonalNoteChange?.(value);
+    }
+  };
 
   return (
     <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 p-6 space-y-6">
@@ -147,36 +160,73 @@ export default function ValueSidebar({
         {showBackPreview ? "Hide" : "View"} Back of Canvas
       </button>
 
-      {/* Back of Canvas Preview Modal */}
+      {/* Back of Canvas Preview with Personalized Note */}
       {showBackPreview && (
-        <div className="p-4 bg-neutral-100 dark:bg-neutral-800 rounded-xl">
-          <div className="aspect-[4/3] bg-white dark:bg-neutral-700 rounded-lg flex items-center justify-center border-2 border-dashed border-neutral-300 dark:border-neutral-600">
-            <div className="text-center p-4">
-              <div className="w-16 h-16 mx-auto mb-3 bg-neutral-200 dark:bg-neutral-600 rounded-lg flex items-center justify-center">
-                <svg
-                  className="w-8 h-8 text-neutral-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
-                  />
-                </svg>
-              </div>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                Custom branding label with
-                <br />
-                QR code & authenticity info
-              </p>
-            </div>
+        <div className="space-y-4">
+          {/* Personalized Note Textarea */}
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+              Add a Custom Note (Printed on Back)
+            </label>
+            <textarea
+              value={personalNote}
+              onChange={handleNoteChange}
+              placeholder="Add a personal message, dedication, or story about this location..."
+              className="w-full px-3 py-2 text-sm border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-white resize-none transition-all"
+              rows={3}
+            />
+            <p className="text-xs text-neutral-400 mt-1 text-right">
+              {personalNote.length}/{MAX_NOTE_LENGTH} characters
+            </p>
           </div>
-          <p className="text-xs text-neutral-500 text-center mt-3">
-            Each canvas includes a custom label on the back
-          </p>
+
+          {/* Back of Canvas Preview */}
+          <div className="p-4 bg-neutral-100 dark:bg-neutral-800 rounded-xl">
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 text-center mb-3 font-medium">
+              Live Preview
+            </p>
+            <div
+              className={`${
+                orientation === "landscape" ? "aspect-[4/3]" : "aspect-[3/4]"
+              } bg-white dark:bg-neutral-700 rounded-lg border border-neutral-200 dark:border-neutral-600 p-4 flex flex-col`}
+            >
+              {/* MapMarked Logo */}
+              <div className="text-center mb-3">
+                <span className="text-sm font-semibold text-neutral-900 dark:text-white tracking-wide">
+                  MapMarked
+                </span>
+                <p className="text-[10px] text-neutral-400">
+                  Premium Architectural Map Art
+                </p>
+              </div>
+
+              {/* Personal Note Section */}
+              <div className="flex-1 flex items-center justify-center">
+                {personalNote ? (
+                  <p className="text-xs text-neutral-600 dark:text-neutral-300 text-center leading-relaxed px-2 italic">
+                    &ldquo;{personalNote}&rdquo;
+                  </p>
+                ) : (
+                  <p className="text-xs text-neutral-400 text-center italic">
+                    Your personal note will appear here
+                  </p>
+                )}
+              </div>
+
+              {/* Dimensions & Info */}
+              <div className="text-center mt-3 pt-3 border-t border-neutral-200 dark:border-neutral-600">
+                <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                  {dimensions} • Gallery Wrap Canvas
+                </p>
+                <p className="text-[10px] text-neutral-400 mt-1">
+                  mapmarked.com
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-neutral-500 text-center mt-3">
+              This label is printed on the back of your canvas
+            </p>
+          </div>
         </div>
       )}
     </div>

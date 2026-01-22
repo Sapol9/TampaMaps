@@ -1,23 +1,43 @@
 "use client";
 
+import type { Orientation } from "./MapPreview";
+
 interface SafeZoneOverlayProps {
   visible: boolean;
+  orientation?: Orientation;
 }
 
 /**
  * Displays a 1.5" safe zone overlay on the map preview.
  * This shows where the gallery wrap will occur on the final canvas.
  *
- * The safe zone is calculated as a percentage:
+ * Portrait (18"x24"):
  * - Horizontal: 1.5" / 18" = 8.33%
  * - Vertical: 1.5" / 24" = 6.25%
+ *
+ * Landscape (24"x18"):
+ * - Horizontal: 1.5" / 24" = 6.25%
+ * - Vertical: 1.5" / 18" = 8.33%
  */
-export default function SafeZoneOverlay({ visible }: SafeZoneOverlayProps) {
+export default function SafeZoneOverlay({
+  visible,
+  orientation = "portrait",
+}: SafeZoneOverlayProps) {
   if (!visible) return null;
 
-  // Safe zone percentages
-  const horizontalPercent = (1.5 / 18) * 100; // 8.33%
-  const verticalPercent = (1.5 / 24) * 100; // 6.25%
+  // Safe zone percentages based on orientation
+  const horizontalPercent =
+    orientation === "portrait"
+      ? (1.5 / 18) * 100 // 8.33% for portrait
+      : (1.5 / 24) * 100; // 6.25% for landscape
+
+  const verticalPercent =
+    orientation === "portrait"
+      ? (1.5 / 24) * 100 // 6.25% for portrait
+      : (1.5 / 18) * 100; // 8.33% for landscape
+
+  const dimensions =
+    orientation === "portrait" ? '18"×24"' : '24"×18"';
 
   return (
     <div className="absolute inset-0 pointer-events-none z-10 safe-zone-overlay">
@@ -50,8 +70,8 @@ export default function SafeZoneOverlay({ visible }: SafeZoneOverlayProps) {
         }}
       />
       {/* Label */}
-      <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-red-500/80 text-white text-xs px-2 py-1 rounded">
-        1.5&quot; Safe Zone (Gallery Wrap Area)
+      <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-red-500/80 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
+        1.5&quot; Safe Zone ({dimensions})
       </div>
     </div>
   );

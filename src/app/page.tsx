@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import dynamic from "next/dynamic";
 import themes from "@/data/themes.json";
 import type { Theme } from "@/lib/mapbox/applyTheme";
 
@@ -11,15 +12,35 @@ import StepVibe from "@/components/builder/StepVibe";
 import StepFocus, { type FocusPoint } from "@/components/builder/StepFocus";
 import StepBranding from "@/components/builder/StepBranding";
 import StepDetails, { type DetailLineType } from "@/components/builder/StepDetails";
-import MapPreview, { type MapPreviewHandle } from "@/components/MapPreview";
-import ProductInfo from "@/components/ProductInfo";
-import ProductDetails from "@/components/ProductDetails";
+import { type MapPreviewHandle } from "@/components/MapPreview";
 import Cart, { type CartItem } from "@/components/Cart";
+
+// New premium components
+import Hero from "@/components/Hero";
+import Features from "@/components/Features";
+import Footer from "@/components/Footer";
+import ValueSidebar from "@/components/ValueSidebar";
+
+// Lazy load MapPreview for better Core Web Vitals
+const MapPreview = dynamic(() => import("@/components/MapPreview"), {
+  ssr: false,
+  loading: () => (
+    <div className="aspect-[3/4] w-full rounded-lg bg-neutral-100 dark:bg-neutral-900 animate-pulse flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-8 h-8 border-2 border-neutral-300 border-t-neutral-600 rounded-full animate-spin mx-auto mb-2" />
+        <p className="text-sm text-neutral-500">Loading map...</p>
+      </div>
+    </div>
+  ),
+});
 
 // Default theme for preview before user selects one
 const defaultTheme = (themes as Theme[])[0];
 
 export default function Home() {
+  // Hero state
+  const [showBuilder, setShowBuilder] = useState(false);
+
   // Builder step state
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
@@ -155,6 +176,11 @@ export default function Home() {
     setCurrentStep(5);
     setCompletedSteps([1, 2, 3, 4, 5]);
     setIsCartOpen(false);
+    setShowBuilder(true);
+  };
+
+  const handleGetStarted = () => {
+    setShowBuilder(true);
   };
 
   // Get current map center
@@ -168,16 +194,16 @@ export default function Home() {
   // Show map as soon as city is selected, using default theme if none selected yet
   const showMapPreview = selectedLocation;
   const previewTheme = selectedTheme || defaultTheme;
+  const isDesignComplete = completedSteps.includes(5);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="border-b border-neutral-200 dark:border-neutral-800">
+      <header className="border-b border-neutral-200 dark:border-neutral-800 sticky top-0 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-md z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <span className="text-sm text-neutral-500">mapmarked.com</span>
-          <h1 className="text-xl font-semibold text-neutral-900 dark:text-white">
-            Build Your Map
-          </h1>
+          <a href="/" className="font-semibold text-neutral-900 dark:text-white">
+            MapMarked
+          </a>
           <button
             onClick={() => setIsCartOpen(true)}
             className="relative p-2 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-lg transition-colors"
@@ -204,126 +230,155 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Step Navigation */}
-        <StepNavigation
-          currentStep={currentStep}
-          completedSteps={completedSteps}
-          onStepClick={goToStep}
-        />
+      <main className="flex-1">
+        {/* Hero Section - shown when builder is not active */}
+        {!showBuilder && (
+          <>
+            <Hero onGetStarted={handleGetStarted} />
+            <Features />
+          </>
+        )}
 
-        {/* Main content area */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
-          {/* Left: Step content */}
-          <div className="order-2 lg:order-1">
-            {currentStep === 1 && (
-              <StepCity
-                selectedLocation={selectedLocation}
-                onLocationSelect={setSelectedLocation}
-                onNext={handleCityNext}
+        {/* Map Builder Section */}
+        {showBuilder && (
+          <section id="map-builder" className="py-8">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              {/* Section Header */}
+              <div className="text-center mb-8">
+                <h2 className="text-2xl sm:text-3xl font-light text-neutral-900 dark:text-white">
+                  Design Your <span className="font-semibold">Masterpiece</span>
+                </h2>
+                <p className="text-neutral-600 dark:text-neutral-400 mt-2">
+                  5 simple steps to create your custom architectural map art
+                </p>
+              </div>
+
+              {/* Step Navigation */}
+              <StepNavigation
+                currentStep={currentStep}
+                completedSteps={completedSteps}
+                onStepClick={goToStep}
               />
-            )}
 
-            {currentStep === 2 && (
-              <StepVibe
-                selectedMood={selectedMood}
-                selectedTheme={selectedTheme}
-                onMoodSelect={setSelectedMood}
-                onThemeSelect={setSelectedTheme}
-                onNext={handleVibeNext}
-                onBack={() => setCurrentStep(1)}
-              />
-            )}
+              {/* Main content area - 3 column on desktop */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Left: Step content */}
+                <div className="lg:col-span-5 order-2 lg:order-1">
+                  {currentStep === 1 && (
+                    <StepCity
+                      selectedLocation={selectedLocation}
+                      onLocationSelect={setSelectedLocation}
+                      onNext={handleCityNext}
+                    />
+                  )}
 
-            {currentStep === 3 && selectedLocation && (
-              <StepFocus
-                centerLat={selectedLocation.lat}
-                centerLng={selectedLocation.lng}
-                focusPoint={focusPoint}
-                onFocusPointChange={setFocusPoint}
-                onNext={handleFocusNext}
-                onBack={() => setCurrentStep(2)}
-              />
-            )}
+                  {currentStep === 2 && (
+                    <StepVibe
+                      selectedMood={selectedMood}
+                      selectedTheme={selectedTheme}
+                      onMoodSelect={setSelectedMood}
+                      onThemeSelect={setSelectedTheme}
+                      onNext={handleVibeNext}
+                      onBack={() => setCurrentStep(1)}
+                    />
+                  )}
 
-            {currentStep === 4 && selectedLocation && (
-              <StepBranding
-                cityName={selectedLocation.name}
-                primaryText={primaryText}
-                onPrimaryTextChange={setPrimaryText}
-                onNext={handleBrandingNext}
-                onBack={() => setCurrentStep(3)}
-              />
-            )}
+                  {currentStep === 3 && selectedLocation && (
+                    <StepFocus
+                      centerLat={selectedLocation.lat}
+                      centerLng={selectedLocation.lng}
+                      focusPoint={focusPoint}
+                      onFocusPointChange={setFocusPoint}
+                      onNext={handleFocusNext}
+                      onBack={() => setCurrentStep(2)}
+                    />
+                  )}
 
-            {currentStep === 5 && selectedLocation && (
-              <StepDetails
-                lat={focusPoint?.lat ?? selectedLocation.lat}
-                lng={focusPoint?.lng ?? selectedLocation.lng}
-                address={focusPoint?.address}
-                primaryText={primaryText || selectedLocation.name}
-                detailLineType={detailLineType}
-                onDetailLineTypeChange={setDetailLineType}
-                onComplete={handleComplete}
-                onBack={() => setCurrentStep(4)}
-              />
-            )}
+                  {currentStep === 4 && selectedLocation && (
+                    <StepBranding
+                      cityName={selectedLocation.name}
+                      primaryText={primaryText}
+                      onPrimaryTextChange={setPrimaryText}
+                      onNext={handleBrandingNext}
+                      onBack={() => setCurrentStep(3)}
+                    />
+                  )}
 
-            {/* Product info after completion */}
-            {completedSteps.includes(5) && (
-              <div className="mt-8 space-y-6">
-                <div className="border-t border-neutral-200 dark:border-neutral-800 pt-8">
-                  <ProductInfo onAddToCart={handleAddToCart} />
+                  {currentStep === 5 && selectedLocation && (
+                    <StepDetails
+                      lat={focusPoint?.lat ?? selectedLocation.lat}
+                      lng={focusPoint?.lng ?? selectedLocation.lng}
+                      address={focusPoint?.address}
+                      primaryText={primaryText || selectedLocation.name}
+                      detailLineType={detailLineType}
+                      onDetailLineTypeChange={setDetailLineType}
+                      onComplete={handleComplete}
+                      onBack={() => setCurrentStep(4)}
+                    />
+                  )}
                 </div>
-                <ProductDetails />
-              </div>
-            )}
-          </div>
 
-          {/* Right: Map preview */}
-          <div className="order-1 lg:order-2 lg:sticky lg:top-8 lg:self-start">
-            {showMapPreview ? (
-              <div className="max-w-md mx-auto lg:max-w-none">
-                <MapPreview
-                  ref={mapPreviewRef}
-                  theme={previewTheme}
-                  center={mapCenter}
-                  zoom={mapZoom}
-                  cityName={primaryText || selectedLocation.name}
-                  stateName={selectedLocation.state || selectedLocation.country || ""}
-                  focusPoint={focusPoint}
-                  detailLineType={detailLineType}
-                  showSafeZone={showSafeZone}
-                  onToggleSafeZone={() => setShowSafeZone(!showSafeZone)}
-                />
-              </div>
-            ) : (
-              <div className="aspect-[3/4] w-full max-w-md mx-auto lg:max-w-none rounded-lg bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
-                <div className="text-center px-8">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center">
-                    <svg
-                      className="w-8 h-8 text-neutral-400"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1.5}
-                        d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+                {/* Center: Map preview */}
+                <div className="lg:col-span-4 order-1 lg:order-2">
+                  <div className="lg:sticky lg:top-24">
+                    {showMapPreview ? (
+                      <MapPreview
+                        ref={mapPreviewRef}
+                        theme={previewTheme}
+                        center={mapCenter}
+                        zoom={mapZoom}
+                        cityName={primaryText || selectedLocation.name}
+                        stateName={selectedLocation.state || selectedLocation.country || ""}
+                        focusPoint={focusPoint}
+                        detailLineType={detailLineType}
+                        showSafeZone={showSafeZone}
+                        onToggleSafeZone={() => setShowSafeZone(!showSafeZone)}
                       />
-                    </svg>
+                    ) : (
+                      <div className="aspect-[3/4] w-full rounded-lg bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
+                        <div className="text-center px-8">
+                          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center">
+                            <svg
+                              className="w-8 h-8 text-neutral-400"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={1.5}
+                                d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+                              />
+                            </svg>
+                          </div>
+                          <p className="text-neutral-600 dark:text-neutral-400 font-medium">
+                            Select a city to preview your map
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <p className="text-neutral-600 dark:text-neutral-400 font-medium">
-                    Select a city and style to preview your map
-                  </p>
+                </div>
+
+                {/* Right: Value Sidebar */}
+                <div className="lg:col-span-3 order-3">
+                  <div className="lg:sticky lg:top-24">
+                    <ValueSidebar
+                      price={94.0}
+                      onAddToCart={handleAddToCart}
+                      isComplete={isDesignComplete}
+                    />
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
+            </div>
+          </section>
+        )}
       </main>
+
+      {/* Footer */}
+      <Footer />
 
       {/* Cart */}
       <Cart

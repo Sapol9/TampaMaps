@@ -54,6 +54,7 @@ export default function CityPage({ params }: CityPageProps) {
         center={[location.lng, location.lat]}
         zoom={location.zoom}
         cityName={location.displayName}
+        stateName={location.state}
         showSafeZone={showSafeZone}
         onToggleSafeZone={() => setShowSafeZone(!showSafeZone)}
         activeMood={activeMood}

@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState, useImperativeHandle, forwardRef } from "react";
+import { useEffect, useRef, useState, useImperativeHandle, forwardRef, useCallback } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
+import html2canvas from "html2canvas";
 import { createCustomStyle } from "@/lib/mapbox/createStyle";
 import type { Theme } from "@/lib/mapbox/applyTheme";
 import SafeZoneOverlay from "./SafeZoneOverlay";
 
 export interface MapPreviewHandle {
-  captureImage: () => string | null;
+  captureImage: () => Promise<string | null>;
 }
 
 interface FocusPoint {
@@ -18,6 +19,7 @@ interface FocusPoint {
 }
 
 type DetailLineType = "coordinates" | "address" | "none";
+export type Orientation = "portrait" | "landscape";
 
 interface MapPreviewProps {
   theme: Theme;
@@ -29,12 +31,16 @@ interface MapPreviewProps {
   detailLineType?: DetailLineType;
   showSafeZone?: boolean;
   showTextOverlay?: boolean;
+  orientation?: Orientation;
   onToggleSafeZone?: () => void;
 }
 
-// Safe zone constants
-const SAFE_ZONE_VERTICAL_PERCENT = (1.5 / 24) * 100; // 6.25%
-const SAFE_ZONE_HORIZONTAL_PERCENT = (1.5 / 18) * 100; // 8.33%
+// Safe zone constants for portrait (18"x24")
+const SAFE_ZONE_VERTICAL_PERCENT_PORTRAIT = (1.5 / 24) * 100; // 6.25%
+const SAFE_ZONE_HORIZONTAL_PERCENT_PORTRAIT = (1.5 / 18) * 100; // 8.33%
+// Safe zone constants for landscape (24"x18")
+const SAFE_ZONE_VERTICAL_PERCENT_LANDSCAPE = (1.5 / 18) * 100; // 8.33%
+const SAFE_ZONE_HORIZONTAL_PERCENT_LANDSCAPE = (1.5 / 24) * 100; // 6.25%
 
 const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPreview({
   theme,
@@ -46,8 +52,17 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
   detailLineType = "coordinates",
   showSafeZone = false,
   showTextOverlay = true,
+  orientation = "portrait",
   onToggleSafeZone,
 }, ref) {
+  // Get safe zone percentages based on orientation
+  const SAFE_ZONE_VERTICAL_PERCENT = orientation === "portrait"
+    ? SAFE_ZONE_VERTICAL_PERCENT_PORTRAIT
+    : SAFE_ZONE_VERTICAL_PERCENT_LANDSCAPE;
+  const SAFE_ZONE_HORIZONTAL_PERCENT = orientation === "portrait"
+    ? SAFE_ZONE_HORIZONTAL_PERCENT_PORTRAIT
+    : SAFE_ZONE_HORIZONTAL_PERCENT_LANDSCAPE;
+  const previewContainer = useRef<HTMLDivElement>(null);
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const marker = useRef<mapboxgl.Marker | null>(null);
@@ -211,27 +226,46 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
     }
   }, [focusPoint, theme.colors.text, isLoading]);
 
+  // Capture the full preview including text overlay using html2canvas
+  const captureImage = useCallback(async (): Promise<string | null> => {
+    if (!previewContainer.current) return null;
+    try {
+      const canvas = await html2canvas(previewContainer.current, {
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: theme.colors.bg,
+        scale: 2, // Higher quality
+        logging: false,
+        // Ignore the safe zone overlay in the capture
+        ignoreElements: (element) => {
+          return element.classList?.contains("safe-zone-overlay") ?? false;
+        },
+      });
+      return canvas.toDataURL("image/jpeg", 0.9);
+    } catch (err) {
+      console.error("Failed to capture image:", err);
+      return null;
+    }
+  }, [theme.colors.bg]);
+
   // Expose captureImage method via ref
   useImperativeHandle(ref, () => ({
-    captureImage: () => {
-      if (!map.current) return null;
-      try {
-        const canvas = map.current.getCanvas();
-        return canvas.toDataURL("image/jpeg", 0.8);
-      } catch {
-        return null;
-      }
-    },
-  }), []);
+    captureImage,
+  }), [captureImage]);
+
+  // Calculate aspect ratio based on orientation
+  const aspectRatio = orientation === "portrait" ? "aspect-[3/4]" : "aspect-[4/3]";
 
   return (
     <div className="relative w-full">
-      {/* Map container with 3:4 aspect ratio (18"x24") */}
+      {/* Map container with dynamic aspect ratio based on orientation */}
       <div
-        className="aspect-[3/4] w-full relative rounded-lg overflow-hidden"
+        ref={previewContainer}
+        className={`${aspectRatio} w-full relative rounded-lg overflow-hidden`}
         style={{
           backgroundColor: theme.colors.bg,
-          border: `1px solid ${theme.colors.road_default}20`
+          border: `1px solid ${theme.colors.road_default}20`,
+          containerType: "inline-size", // Enable container queries for text scaling
         }}
       >
         {/* Loading state */}
@@ -307,17 +341,27 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
             }}
           >
             <div
-              className="text-center py-3 sm:py-4"
+              className="text-center py-2 sm:py-3"
               style={{
                 textShadow: `0 1px 3px ${theme.colors.bg}, 0 0 8px ${theme.colors.bg}, 0 0 16px ${theme.colors.bg}`,
               }}
             >
-              {/* City Name - Large, spaced letters, auto-sizing */}
+              {/* City Name - Uses container-width-relative sizing for consistent scaling */}
               <h2
-                className="font-bold tracking-[0.2em] sm:tracking-[0.25em] mb-2 whitespace-nowrap overflow-hidden"
+                className="font-bold mb-1.5 sm:mb-2 leading-tight"
                 style={{
                   color: theme.colors.text,
-                  fontSize: `clamp(0.875rem, ${Math.max(1.5, 3 - cityName.length * 0.15)}rem, 2rem)`,
+                  // Use cqw (container query width) fallback to vw for better scaling
+                  // Scale down letter spacing for longer names
+                  letterSpacing: cityName.length > 12 ? "0.1em" : cityName.length > 8 ? "0.15em" : "0.2em",
+                  // Dynamic font size: smaller for longer names, fits container width
+                  fontSize: cityName.length > 14
+                    ? "clamp(0.6rem, 4.5cqw, 1rem)"
+                    : cityName.length > 10
+                    ? "clamp(0.7rem, 5.5cqw, 1.25rem)"
+                    : cityName.length > 6
+                    ? "clamp(0.875rem, 6.5cqw, 1.5rem)"
+                    : "clamp(1rem, 8cqw, 2rem)",
                 }}
               >
                 {spacedCityName}
@@ -325,7 +369,7 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
 
               {/* Decorative Line */}
               <div
-                className="w-12 sm:w-16 h-px mx-auto mb-2"
+                className="w-10 sm:w-14 h-px mx-auto mb-1.5 sm:mb-2"
                 style={{
                   backgroundColor: theme.colors.text,
                   boxShadow: `0 0 8px ${theme.colors.bg}`,
@@ -334,7 +378,7 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
 
               {/* State/Country Name */}
               <p
-                className="text-xs sm:text-sm font-light tracking-[0.15em] uppercase mb-1"
+                className="text-[10px] sm:text-xs font-light tracking-[0.15em] uppercase mb-0.5 sm:mb-1"
                 style={{ color: theme.colors.text, opacity: 0.9 }}
               >
                 {stateName}
@@ -343,7 +387,7 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
               {/* Detail Line - coordinates, address, or none */}
               {detailLineType !== "none" && (
                 <p
-                  className="text-[10px] sm:text-xs font-light tracking-wider"
+                  className="text-[8px] sm:text-[10px] font-light tracking-wider"
                   style={{ color: theme.colors.text, opacity: 0.7 }}
                 >
                   {detailLineType === "address" && focusPoint?.address

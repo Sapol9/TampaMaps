@@ -3,7 +3,8 @@
 import { SITE, LEGAL } from "@/config/site";
 
 export default function Footer() {
-  const currentYear = new Date().getFullYear();
+  // Fixed copyright year as specified
+  const currentYear = 2026;
 
   return (
     <footer className="bg-neutral-50 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800">

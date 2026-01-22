@@ -8,15 +8,17 @@ import type { Theme } from "@/lib/mapbox/applyTheme";
 // Builder components
 import StepNavigation from "@/components/builder/StepNavigation";
 import StepCity, { type LocationData } from "@/components/builder/StepCity";
+import StepOrientation from "@/components/builder/StepOrientation";
 import StepVibe from "@/components/builder/StepVibe";
 import StepFocus, { type FocusPoint } from "@/components/builder/StepFocus";
 import StepBranding from "@/components/builder/StepBranding";
 import StepDetails, { type DetailLineType } from "@/components/builder/StepDetails";
-import { type MapPreviewHandle } from "@/components/MapPreview";
+import { type MapPreviewHandle, type Orientation } from "@/components/MapPreview";
 import Cart, { type CartItem } from "@/components/Cart";
 
 // New premium components
 import Hero from "@/components/Hero";
+import ProcessSteps from "@/components/ProcessSteps";
 import Features from "@/components/Features";
 import Footer from "@/components/Footer";
 import ValueSidebar from "@/components/ValueSidebar";
@@ -48,17 +50,20 @@ export default function Home() {
   // Step 1: City selection
   const [selectedLocation, setSelectedLocation] = useState<LocationData | null>(null);
 
-  // Step 2: Vibe/Theme selection
+  // Step 2: Orientation
+  const [orientation, setOrientation] = useState<Orientation>("portrait");
+
+  // Step 3: Vibe/Theme selection
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [selectedTheme, setSelectedTheme] = useState<Theme | null>(null);
 
-  // Step 3: Focus point
+  // Step 4: Focus point
   const [focusPoint, setFocusPoint] = useState<FocusPoint | null>(null);
 
-  // Step 4: Primary branding
+  // Step 5: Primary branding
   const [primaryText, setPrimaryText] = useState("");
 
-  // Step 5: Detail line
+  // Step 6: Detail line
   const [detailLineType, setDetailLineType] = useState<DetailLineType>("coordinates");
 
   // Map preview state
@@ -91,35 +96,40 @@ export default function Home() {
     }
   };
 
+  const handleOrientationNext = () => {
+    completeStep(2);
+    setCurrentStep(3);
+  };
+
   const handleVibeNext = () => {
     if (selectedTheme) {
-      completeStep(2);
-      setCurrentStep(3);
+      completeStep(3);
+      setCurrentStep(4);
     }
   };
 
   const handleFocusNext = () => {
-    completeStep(3);
-    setCurrentStep(4);
+    completeStep(4);
+    setCurrentStep(5);
   };
 
   const handleBrandingNext = () => {
     if (primaryText.trim()) {
-      completeStep(4);
-      setCurrentStep(5);
+      completeStep(5);
+      setCurrentStep(6);
     }
   };
 
   const handleComplete = () => {
-    completeStep(5);
-    // Stay on step 5 but show completion state
+    completeStep(6);
+    // Stay on step 6 but show completion state
   };
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!selectedLocation || !selectedTheme) return;
 
-    // Capture map thumbnail
-    const thumbnail = mapPreviewRef.current?.captureImage() ?? undefined;
+    // Capture map thumbnail (now async with html2canvas)
+    const thumbnail = await mapPreviewRef.current?.captureImage() ?? undefined;
 
     const newItem: CartItem = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
@@ -131,6 +141,7 @@ export default function Home() {
       focusAddress: focusPoint?.address,
       lat: focusPoint?.lat ?? selectedLocation.lat,
       lng: focusPoint?.lng ?? selectedLocation.lng,
+      orientation,
       price: 94.0,
       thumbnail,
     };
@@ -160,6 +171,7 @@ export default function Home() {
       lng: item.lng,
       zoom: 12,
     });
+    setOrientation(item.orientation);
     setSelectedTheme(item.theme);
     setPrimaryText(item.primaryText);
     setDetailLineType(item.detailLineType);
@@ -173,8 +185,8 @@ export default function Home() {
       setFocusPoint(null);
     }
     // Go to last step and close cart
-    setCurrentStep(5);
-    setCompletedSteps([1, 2, 3, 4, 5]);
+    setCurrentStep(6);
+    setCompletedSteps([1, 2, 3, 4, 5, 6]);
     setIsCartOpen(false);
     setShowBuilder(true);
   };
@@ -194,7 +206,7 @@ export default function Home() {
   // Show map as soon as city is selected, using default theme if none selected yet
   const showMapPreview = selectedLocation;
   const previewTheme = selectedTheme || defaultTheme;
-  const isDesignComplete = completedSteps.includes(5);
+  const isDesignComplete = completedSteps.includes(6);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -235,6 +247,7 @@ export default function Home() {
         {!showBuilder && (
           <>
             <Hero onGetStarted={handleGetStarted} />
+            <ProcessSteps />
             <Features />
           </>
         )}
@@ -249,7 +262,7 @@ export default function Home() {
                   Design Your <span className="font-semibold">Masterpiece</span>
                 </h2>
                 <p className="text-neutral-600 dark:text-neutral-400 mt-2">
-                  5 simple steps to create your custom architectural map art
+                  6 simple steps to create your custom architectural map art
                 </p>
               </div>
 
@@ -273,38 +286,47 @@ export default function Home() {
                   )}
 
                   {currentStep === 2 && (
+                    <StepOrientation
+                      selectedOrientation={orientation}
+                      onOrientationSelect={setOrientation}
+                      onNext={handleOrientationNext}
+                      onBack={() => setCurrentStep(1)}
+                    />
+                  )}
+
+                  {currentStep === 3 && (
                     <StepVibe
                       selectedMood={selectedMood}
                       selectedTheme={selectedTheme}
                       onMoodSelect={setSelectedMood}
                       onThemeSelect={setSelectedTheme}
                       onNext={handleVibeNext}
-                      onBack={() => setCurrentStep(1)}
+                      onBack={() => setCurrentStep(2)}
                     />
                   )}
 
-                  {currentStep === 3 && selectedLocation && (
+                  {currentStep === 4 && selectedLocation && (
                     <StepFocus
                       centerLat={selectedLocation.lat}
                       centerLng={selectedLocation.lng}
                       focusPoint={focusPoint}
                       onFocusPointChange={setFocusPoint}
                       onNext={handleFocusNext}
-                      onBack={() => setCurrentStep(2)}
-                    />
-                  )}
-
-                  {currentStep === 4 && selectedLocation && (
-                    <StepBranding
-                      cityName={selectedLocation.name}
-                      primaryText={primaryText}
-                      onPrimaryTextChange={setPrimaryText}
-                      onNext={handleBrandingNext}
                       onBack={() => setCurrentStep(3)}
                     />
                   )}
 
                   {currentStep === 5 && selectedLocation && (
+                    <StepBranding
+                      cityName={selectedLocation.name}
+                      primaryText={primaryText}
+                      onPrimaryTextChange={setPrimaryText}
+                      onNext={handleBrandingNext}
+                      onBack={() => setCurrentStep(4)}
+                    />
+                  )}
+
+                  {currentStep === 6 && selectedLocation && (
                     <StepDetails
                       lat={focusPoint?.lat ?? selectedLocation.lat}
                       lng={focusPoint?.lng ?? selectedLocation.lng}
@@ -313,7 +335,7 @@ export default function Home() {
                       detailLineType={detailLineType}
                       onDetailLineTypeChange={setDetailLineType}
                       onComplete={handleComplete}
-                      onBack={() => setCurrentStep(4)}
+                      onBack={() => setCurrentStep(5)}
                     />
                   )}
                 </div>
@@ -331,6 +353,7 @@ export default function Home() {
                         stateName={selectedLocation.state || selectedLocation.country || ""}
                         focusPoint={focusPoint}
                         detailLineType={detailLineType}
+                        orientation={orientation}
                         showSafeZone={showSafeZone}
                         onToggleSafeZone={() => setShowSafeZone(!showSafeZone)}
                       />
@@ -368,6 +391,7 @@ export default function Home() {
                       price={94.0}
                       onAddToCart={handleAddToCart}
                       isComplete={isDesignComplete}
+                      orientation={orientation}
                     />
                   </div>
                 </div>

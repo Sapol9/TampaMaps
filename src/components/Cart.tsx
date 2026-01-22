@@ -2,6 +2,7 @@
 
 import type { Theme } from "@/lib/mapbox/applyTheme";
 import type { DetailLineType } from "./builder/StepDetails";
+import type { Orientation } from "./MapPreview";
 
 export interface CartItem {
   id: string;
@@ -13,6 +14,7 @@ export interface CartItem {
   focusAddress?: string;
   lat: number;
   lng: number;
+  orientation: Orientation;
   price: number;
   thumbnail?: string; // Base64 data URL of map preview
 }
@@ -106,7 +108,9 @@ export default function Cart({
                 {/* Map thumbnail or color preview */}
                 <button
                   onClick={() => onReviewItem?.(item)}
-                  className="w-16 h-20 rounded-lg flex-shrink-0 overflow-hidden hover:ring-2 hover:ring-neutral-400 transition-all cursor-pointer"
+                  className={`rounded-lg flex-shrink-0 overflow-hidden hover:ring-2 hover:ring-neutral-400 transition-all cursor-pointer ${
+                    item.orientation === "landscape" ? "w-20 h-16" : "w-16 h-20"
+                  }`}
                   title="Click to review"
                 >
                   {item.thumbnail ? (
@@ -139,7 +143,7 @@ export default function Cart({
                     {item.stateName}
                   </p>
                   <p className="text-xs text-neutral-400 mt-1">
-                    {item.theme.name} • 18" × 24" Canvas
+                    {item.theme.name} • {item.orientation === "landscape" ? "24\" × 18\"" : "18\" × 24\""} Canvas
                   </p>
                   <p className="text-sm font-medium text-neutral-900 dark:text-white mt-2">
                     ${item.price.toFixed(2)}

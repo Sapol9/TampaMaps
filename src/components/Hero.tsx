@@ -35,7 +35,7 @@ export default function Hero({ onGetStarted }: HeroProps) {
           onClick={handleScroll}
           className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-medium text-lg hover:opacity-90 transition-all shadow-lg hover:shadow-xl"
         >
-          Create Your Map
+          Build Your Landmark
           <svg
             className="w-5 h-5"
             fill="none"

@@ -1,18 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import type { Orientation } from "./MapPreview";
 
 interface ValueSidebarProps {
   price: number;
   onAddToCart: () => void;
   isComplete: boolean;
+  orientation?: Orientation;
 }
 
 export default function ValueSidebar({
   price,
   onAddToCart,
   isComplete,
+  orientation = "portrait",
 }: ValueSidebarProps) {
+  const dimensions = orientation === "landscape" ? "24\" × 18\"" : "18\" × 24\"";
   const [showBackPreview, setShowBackPreview] = useState(false);
 
   return (
@@ -44,7 +48,7 @@ export default function ValueSidebar({
             />
           </svg>
           <span className="text-neutral-600 dark:text-neutral-400">
-            18" × 24" Gallery Wrap Canvas
+            {dimensions} Gallery Wrap Canvas
           </span>
         </div>
         <div className="flex items-center gap-3 text-sm">

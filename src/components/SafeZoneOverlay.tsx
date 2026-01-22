@@ -20,7 +20,7 @@ export default function SafeZoneOverlay({ visible }: SafeZoneOverlayProps) {
   const verticalPercent = (1.5 / 24) * 100; // 6.25%
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-10">
+    <div className="absolute inset-0 pointer-events-none z-10 safe-zone-overlay">
       {/* Top safe zone */}
       <div
         className="absolute top-0 left-0 right-0 bg-red-500/20 border-b border-dashed border-red-500/50"

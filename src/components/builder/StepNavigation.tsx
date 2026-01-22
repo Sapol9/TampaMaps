@@ -8,10 +8,11 @@ interface Step {
 
 const STEPS: Step[] = [
   { number: 1, title: "Select City", shortTitle: "City" },
-  { number: 2, title: "Choose Your Vibe", shortTitle: "Vibe" },
-  { number: 3, title: "Define Your Focus", shortTitle: "Focus" },
-  { number: 4, title: "Primary Branding", shortTitle: "Title" },
-  { number: 5, title: "Detail Line", shortTitle: "Details" },
+  { number: 2, title: "Orientation", shortTitle: "Size" },
+  { number: 3, title: "Choose Your Vibe", shortTitle: "Vibe" },
+  { number: 4, title: "Define Your Focus", shortTitle: "Focus" },
+  { number: 5, title: "Primary Branding", shortTitle: "Title" },
+  { number: 6, title: "Detail Line", shortTitle: "Details" },
 ];
 
 interface StepNavigationProps {

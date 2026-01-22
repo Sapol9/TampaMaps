@@ -4,7 +4,7 @@ const features = [
   {
     title: "Precision Vector Data",
     description:
-      "300 DPI resolution at 5400×7200 pixels. Every street, waterway, and landmark rendered with cartographic precision from OpenStreetMap data.",
+      "Every map is rendered at 300 DPI (5400×7200 px) for razor-sharp technical detail. Streets, waterways, and landmarks captured with cartographic precision from OpenStreetMap data.",
     icon: (
       <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path
@@ -19,7 +19,7 @@ const features = [
   {
     title: "Museum-Grade Build",
     description:
-      "18\"×24\" gallery wrap canvas with 1.25\" depth. Archival-quality materials ensure your art remains vibrant for generations.",
+      "18\"×24\" gallery wrap on archival canvas with 1.25\" depth for a substantial, gallery-ready feel. Built to remain vibrant for generations.",
     icon: (
       <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path
@@ -32,9 +32,9 @@ const features = [
     ),
   },
   {
-    title: "Signature Styles",
+    title: "Signature Aesthetics",
     description:
-      "Choose from 17 curated palettes including \"The Noir\" for dramatic contrast and \"The Blueprint\" for technical elegance.",
+      "Curated palettes designed for impact. \"The Noir\" delivers dramatic contrast, while \"The Blueprint\" offers technical elegance.",
     icon: (
       <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path
@@ -50,15 +50,18 @@ const features = [
 
 export default function Features() {
   return (
-    <section className="py-16 sm:py-20 bg-neutral-50 dark:bg-neutral-900/50">
+    <section className="py-20 sm:py-28 bg-neutral-50 dark:bg-neutral-900/50">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         {/* Section Header */}
-        <div className="text-center mb-12">
-          <h2 className="text-2xl sm:text-3xl font-light text-neutral-900 dark:text-white mb-3">
-            Crafted for <span className="font-semibold">Permanence</span>
+        <div className="text-center mb-16">
+          <p className="text-sm font-medium tracking-widest text-neutral-500 uppercase mb-3">
+            The System
+          </p>
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-light text-neutral-900 dark:text-white mb-4">
+            Engineered for <span className="font-semibold">Permanence</span>
           </h2>
           <p className="text-neutral-600 dark:text-neutral-400 max-w-xl mx-auto">
-            Every detail engineered for museum-quality display
+            Every detail crafted for museum-quality display
           </p>
         </div>
 
@@ -67,9 +70,9 @@ export default function Features() {
           {features.map((feature) => (
             <div
               key={feature.title}
-              className="text-center p-6 rounded-2xl bg-white dark:bg-neutral-800/50"
+              className="text-center p-8 rounded-2xl bg-white dark:bg-neutral-800/50 border border-neutral-200/50 dark:border-neutral-700/50"
             >
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 mb-5">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 mb-6">
                 {feature.icon}
               </div>
               <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-3">

@@ -1,20 +1,19 @@
 export const SITE = {
-  name: "Tampa Bay Maps",
-  domain: "tampabaymaps.com",
-  alternateDomain: "tbmaps.com",
-  title: "Tampa Bay Maps | Premium 18x24 Minimalist Noir Canvas Art",
+  name: "MapMarked",
+  domain: "mapmarked.com",
+  title: "MapMarked | Custom Map Art - Build Your Own Canvas Print",
   description:
-    "Premium minimalist map canvas art of Tampa Bay. Gallery-quality 18x24 prints featuring 17 unique styles. Free shipping included.",
+    "Create custom map canvas art of any city worldwide. Gallery-quality 18x24 prints featuring 17 unique styles. Design your perfect map art.",
   keywords: [
-    "Tampa Bay map",
-    "Tampa canvas art",
+    "custom map art",
+    "city map canvas",
     "minimalist map print",
-    "Tampa wall art",
+    "personalized wall art",
     "gallery wrap canvas",
-    "noir map art",
+    "map poster",
   ] as string[],
 } as const;
 
 export const LEGAL = {
-  disclaimer: `Tampa Bay Maps is an independent artistic venture. We are not affiliated with, endorsed by, or connected to any professional sports leagues, collegiate athletic programs, universities, or local government agencies. All map artwork is original and created for decorative purposes.`,
+  disclaimer: `MapMarked is an independent artistic venture. We are not affiliated with, endorsed by, or connected to any professional sports leagues, collegiate athletic programs, universities, or local government agencies. All map artwork is original and created for decorative purposes.`,
 } as const;

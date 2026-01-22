@@ -1,14 +1,13 @@
 "use client";
 
-import styles from "@/data/styles.json";
-
-type Style = (typeof styles)[number];
+import themes from "@/data/themes.json";
+import type { Theme } from "@/lib/mapbox/applyTheme";
 
 interface StyleTabsProps {
   activeMood: string;
-  activeStyle: Style;
+  activeTheme: Theme;
   onMoodChange: (mood: string) => void;
-  onStyleChange: (style: Style) => void;
+  onThemeChange: (theme: Theme) => void;
 }
 
 const moodTabs = [
@@ -19,11 +18,11 @@ const moodTabs = [
 
 export default function StyleTabs({
   activeMood,
-  activeStyle,
+  activeTheme,
   onMoodChange,
-  onStyleChange,
+  onThemeChange,
 }: StyleTabsProps) {
-  const filteredStyles = styles.filter((s) => s.moodTag === activeMood);
+  const filteredThemes = (themes as Theme[]).filter((t) => t.moodTag === activeMood);
 
   return (
     <div className="w-full">
@@ -35,8 +34,8 @@ export default function StyleTabs({
               key={tab.id}
               onClick={() => {
                 onMoodChange(tab.id);
-                const firstStyle = styles.find((s) => s.moodTag === tab.id);
-                if (firstStyle) onStyleChange(firstStyle);
+                const firstTheme = (themes as Theme[]).find((t) => t.moodTag === tab.id);
+                if (firstTheme) onThemeChange(firstTheme);
               }}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
                 activeMood === tab.id
@@ -50,24 +49,23 @@ export default function StyleTabs({
         </div>
       </div>
 
-      {/* Style Pills */}
+      {/* Theme Pills */}
       <div className="flex flex-wrap justify-center gap-2">
-        {filteredStyles.map((style) => (
+        {filteredThemes.map((theme) => (
           <button
-            key={style.id}
-            onClick={() => onStyleChange(style)}
+            key={theme.id}
+            onClick={() => onThemeChange(theme)}
             className={`px-3 py-1.5 text-sm rounded-full transition-all ${
-              activeStyle.id === style.id
+              activeTheme.id === theme.id
                 ? "bg-accent text-background font-medium"
                 : "bg-neutral-100 dark:bg-neutral-800 text-muted hover:text-foreground hover:bg-neutral-200 dark:hover:bg-neutral-700"
             }`}
+            title={theme.description}
           >
-            {style.name}
+            {theme.name}
           </button>
         ))}
       </div>
     </div>
   );
 }
-
-export type { Style };

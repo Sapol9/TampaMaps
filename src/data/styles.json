@@ -1,104 +1,21 @@
 [
-  {
-    "id": "noir",
-    "name": "Noir",
-    "moodTag": "Technical",
-    "mapboxStyle": "mapbox://styles/mapbox/dark-v11"
-  },
-  {
-    "id": "blueprint",
-    "name": "Blueprint",
-    "moodTag": "Technical",
-    "mapboxStyle": "mapbox://styles/mapbox/dark-v11"
-  },
-  {
-    "id": "slate",
-    "name": "Slate",
-    "moodTag": "Technical",
-    "mapboxStyle": "mapbox://styles/mapbox/dark-v11"
-  },
-  {
-    "id": "charcoal",
-    "name": "Charcoal",
-    "moodTag": "Technical",
-    "mapboxStyle": "mapbox://styles/mapbox/dark-v11"
-  },
-  {
-    "id": "midnight",
-    "name": "Midnight",
-    "moodTag": "Technical",
-    "mapboxStyle": "mapbox://styles/mapbox/dark-v11"
-  },
-  {
-    "id": "autumn",
-    "name": "Autumn",
-    "moodTag": "Elemental",
-    "mapboxStyle": "mapbox://styles/mapbox/outdoors-v12"
-  },
-  {
-    "id": "copper-patina",
-    "name": "Copper Patina",
-    "moodTag": "Elemental",
-    "mapboxStyle": "mapbox://styles/mapbox/outdoors-v12"
-  },
-  {
-    "id": "gradient-rust",
-    "name": "Gradient Rust",
-    "moodTag": "Elemental",
-    "mapboxStyle": "mapbox://styles/mapbox/outdoors-v12"
-  },
-  {
-    "id": "driftwood",
-    "name": "Driftwood",
-    "moodTag": "Elemental",
-    "mapboxStyle": "mapbox://styles/mapbox/outdoors-v12"
-  },
-  {
-    "id": "sandstone",
-    "name": "Sandstone",
-    "moodTag": "Elemental",
-    "mapboxStyle": "mapbox://styles/mapbox/outdoors-v12"
-  },
-  {
-    "id": "terra",
-    "name": "Terra",
-    "moodTag": "Elemental",
-    "mapboxStyle": "mapbox://styles/mapbox/outdoors-v12"
-  },
-  {
-    "id": "neon-cyberpunk",
-    "name": "Neon Cyberpunk",
-    "moodTag": "Modern",
-    "mapboxStyle": "mapbox://styles/mapbox/dark-v11"
-  },
-  {
-    "id": "contrast-zones",
-    "name": "Contrast Zones",
-    "moodTag": "Modern",
-    "mapboxStyle": "mapbox://styles/mapbox/light-v11"
-  },
-  {
-    "id": "japanese-ink",
-    "name": "Japanese Ink",
-    "moodTag": "Modern",
-    "mapboxStyle": "mapbox://styles/mapbox/light-v11"
-  },
-  {
-    "id": "monochrome-blue",
-    "name": "Monochrome Blue",
-    "moodTag": "Modern",
-    "mapboxStyle": "mapbox://styles/mapbox/dark-v11"
-  },
-  {
-    "id": "electric",
-    "name": "Electric",
-    "moodTag": "Modern",
-    "mapboxStyle": "mapbox://styles/mapbox/dark-v11"
-  },
-  {
-    "id": "minimal-white",
-    "name": "Minimal White",
-    "moodTag": "Modern",
-    "mapboxStyle": "mapbox://styles/mapbox/light-v11"
-  }
+  { "id": "noir", "name": "Noir", "moodTag": "Technical", "mapboxStyle": "mapbox://styles/mapbox/dark-v11" },
+  { "id": "blueprint", "name": "Blueprint", "moodTag": "Technical", "mapboxStyle": "mapbox://styles/mapbox/navigation-night-v1" },
+  { "id": "slate", "name": "Slate", "moodTag": "Technical", "mapboxStyle": "mapbox://styles/mapbox/light-v11" },
+  { "id": "charcoal", "name": "Charcoal", "moodTag": "Technical", "mapboxStyle": "mapbox://styles/mapbox/dark-v11" },
+  { "id": "lead", "name": "Lead", "moodTag": "Technical", "mapboxStyle": "mapbox://styles/mapbox/navigation-night-v1" },
+  { "id": "graphite", "name": "Graphite", "moodTag": "Technical", "mapboxStyle": "mapbox://styles/mapbox/dark-v11" },
+
+  { "id": "autumn", "name": "Autumn", "moodTag": "Elemental", "mapboxStyle": "mapbox://styles/mapbox/outdoors-v12" },
+  { "id": "copper-patina", "name": "Copper Patina", "moodTag": "Elemental", "mapboxStyle": "mapbox://styles/mapbox/light-v11" },
+  { "id": "gradient-rust", "name": "Gradient Rust", "moodTag": "Elemental", "mapboxStyle": "mapbox://styles/mapbox/outdoors-v12" },
+  { "id": "driftwood", "name": "Driftwood", "moodTag": "Elemental", "mapboxStyle": "mapbox://styles/mapbox/light-v11" },
+  { "id": "sandstone", "name": "Sandstone", "moodTag": "Elemental", "mapboxStyle": "mapbox://styles/mapbox/outdoors-v12" },
+  { "id": "terracotta", "name": "Terracotta", "moodTag": "Elemental", "mapboxStyle": "mapbox://styles/mapbox/light-v11" },
+
+  { "id": "neon-cyberpunk", "name": "Neon Cyberpunk", "moodTag": "Modern", "mapboxStyle": "mapbox://styles/mapbox/navigation-night-v1" },
+  { "id": "contrast-zones", "name": "Contrast Zones", "moodTag": "Modern", "mapboxStyle": "mapbox://styles/mapbox/streets-v12" },
+  { "id": "japanese-ink", "name": "Japanese Ink", "moodTag": "Modern", "mapboxStyle": "mapbox://styles/mapbox/dark-v11" },
+  { "id": "monochrome-blue", "name": "Monochrome Blue", "moodTag": "Modern", "mapboxStyle": "mapbox://styles/mapbox/navigation-day-v1" },
+  { "id": "arctic-white", "name": "Arctic White", "moodTag": "Modern", "mapboxStyle": "mapbox://styles/mapbox/light-v11" }
 ]

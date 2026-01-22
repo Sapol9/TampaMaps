@@ -1,39 +1,44 @@
 "use client";
 
 import MapPreview from "./MapPreview";
-import StyleTabs, { type Style } from "./StyleTabs";
+import StyleTabs from "./StyleTabs";
+import type { Theme } from "@/lib/mapbox/applyTheme";
 
 interface HeroSectionProps {
-  styleUrl: string;
+  theme: Theme;
   center: [number, number];
   zoom: number;
+  cityName: string;
+  stateName: string;
   showSafeZone: boolean;
   onToggleSafeZone: () => void;
   activeMood: string;
-  activeStyle: Style;
   onMoodChange: (mood: string) => void;
-  onStyleChange: (style: Style) => void;
+  onThemeChange: (theme: Theme) => void;
 }
 
 export default function HeroSection({
-  styleUrl,
+  theme,
   center,
   zoom,
+  cityName,
+  stateName,
   showSafeZone,
   onToggleSafeZone,
   activeMood,
-  activeStyle,
   onMoodChange,
-  onStyleChange,
+  onThemeChange,
 }: HeroSectionProps) {
   return (
     <section className="w-full">
       {/* Map Preview */}
       <div className="max-w-2xl mx-auto mb-8">
         <MapPreview
-          styleUrl={styleUrl}
+          theme={theme}
           center={center}
           zoom={zoom}
+          cityName={cityName}
+          stateName={stateName}
           showSafeZone={showSafeZone}
           onToggleSafeZone={onToggleSafeZone}
         />
@@ -42,9 +47,9 @@ export default function HeroSection({
       {/* Style Navigation */}
       <StyleTabs
         activeMood={activeMood}
-        activeStyle={activeStyle}
+        activeTheme={theme}
         onMoodChange={onMoodChange}
-        onStyleChange={onStyleChange}
+        onThemeChange={onThemeChange}
       />
     </section>
   );

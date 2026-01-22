@@ -1,46 +1,66 @@
 import type { Map } from "mapbox-gl";
 
 /**
- * Layers to hide for a clean, architectural aesthetic.
- * These remove POIs, transit markers, and airport labels.
- */
-const HIDDEN_LAYERS = [
-  "poi-label",
-  "transit-label",
-  "airport-label",
-] as const;
-
-/**
- * Additional layer patterns to hide for an even cleaner look.
- * These catch variations across different Mapbox styles.
- */
-const HIDDEN_LAYER_PATTERNS = [
-  /^poi/,
-  /^transit/,
-  /^airport/,
-  /place-label.*poi/,
-] as const;
-
-/**
- * Scrub (hide) POI, transit, and airport labels from the map.
- * Call this on map load and after style changes.
+ * Hide ALL labels and symbols to achieve a clean maptoposter-style aesthetic.
+ * We want only roads, water, and parks - no text, icons, or markers.
  */
 export function scrubLayers(map: Map): void {
   const style = map.getStyle();
   if (!style || !style.layers) return;
 
   style.layers.forEach((layer) => {
-    // Check exact matches
-    if (HIDDEN_LAYERS.includes(layer.id as (typeof HIDDEN_LAYERS)[number])) {
-      map.setLayoutProperty(layer.id, "visibility", "none");
+    const layerId = layer.id;
+    const layerType = layer.type;
+    const id = layerId.toLowerCase();
+
+    // Hide ALL symbol layers (text labels, icons, markers)
+    if (layerType === "symbol") {
+      try {
+        map.setLayoutProperty(layerId, "visibility", "none");
+      } catch {
+        // Ignore errors
+      }
       return;
     }
 
-    // Check pattern matches
-    for (const pattern of HIDDEN_LAYER_PATTERNS) {
-      if (pattern.test(layer.id)) {
-        map.setLayoutProperty(layer.id, "visibility", "none");
+    // Hide specific layer patterns that might not be symbols
+    const hiddenPatterns = [
+      /label/i,
+      /symbol/i,
+      /icon/i,
+      /marker/i,
+      /poi/i,
+      /place/i,
+      /transit/i,
+      /airport/i,
+      /admin/i,
+      /boundary/i,
+      /country/i,
+      /state/i,
+      /ferry/i,
+      /aeroway/i,
+      /helipad/i,
+      /gate/i,
+    ];
+
+    for (const pattern of hiddenPatterns) {
+      if (pattern.test(id)) {
+        try {
+          map.setLayoutProperty(layerId, "visibility", "none");
+        } catch {
+          // Ignore errors
+        }
         return;
+      }
+    }
+
+    // Also hide any layer with "text" in the paint properties
+    // This catches edge cases where text might be rendered differently
+    if (layer.paint && "text-color" in layer.paint) {
+      try {
+        map.setLayoutProperty(layerId, "visibility", "none");
+      } catch {
+        // Ignore errors
       }
     }
   });
@@ -48,15 +68,13 @@ export function scrubLayers(map: Map): void {
 
 /**
  * Sets up automatic layer scrubbing on style load events.
- * This ensures POIs stay hidden when switching between styles.
+ * This ensures labels stay hidden when switching between styles.
  */
 export function setupAutoScrubbing(map: Map): void {
-  // Scrub on initial style load
   map.on("style.load", () => {
     scrubLayers(map);
   });
 
-  // Also scrub if style is already loaded
   if (map.isStyleLoaded()) {
     scrubLayers(map);
   }

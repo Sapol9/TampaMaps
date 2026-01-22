@@ -3,6 +3,8 @@
     "id": "tampa",
     "name": "Tampa",
     "displayName": "Tampa Bay",
+    "state": "Florida",
+    "country": "United States",
     "lat": 27.9506,
     "lng": -82.4572,
     "zoom": 12

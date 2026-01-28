@@ -400,10 +400,10 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
           </button>
         )}
 
-        {/* Text overlay - maptoposter style: CITY, line, STATE, coordinates */}
+        {/* Text overlay - Space Grotesk typography with dynamic halo matching theme */}
         {showTextOverlay && !isLoading && !error && (
           <div
-            className="absolute left-0 right-0 pointer-events-none z-10"
+            className="absolute left-0 right-0 pointer-events-none z-20"
             style={{
               bottom: `${SAFE_ZONE_VERTICAL_PERCENT}%`,
               paddingLeft: `${SAFE_ZONE_HORIZONTAL_PERCENT}%`,
@@ -413,17 +413,25 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
             <div
               className="text-center py-2 sm:py-3"
               style={{
-                textShadow: `0 1px 3px ${theme.colors.bg}, 0 0 8px ${theme.colors.bg}, 0 0 16px ${theme.colors.bg}`,
+                // Dynamic 4px halo with 0.2 blur matching theme background
+                textShadow: `
+                  0 0 4px ${theme.colors.bg},
+                  0 0 4px ${theme.colors.bg},
+                  0 0 4px ${theme.colors.bg},
+                  0 0 4px ${theme.colors.bg},
+                  0 1px 4px ${theme.colors.bg}80
+                `.trim().replace(/\s+/g, ' '),
+                filter: "blur(0.2px)",
               }}
             >
-              {/* City Name - Uses container-width-relative sizing for consistent scaling */}
+              {/* City Name - Space Grotesk with 0.1em letter spacing */}
               <h2
-                className="font-bold mb-1.5 sm:mb-2 leading-tight"
+                className="font-semibold mb-1.5 sm:mb-2 leading-tight"
                 style={{
+                  fontFamily: "var(--font-space-grotesk), sans-serif",
                   color: theme.colors.text,
-                  // Use cqw (container query width) fallback to vw for better scaling
-                  // Scale down letter spacing for longer names
-                  letterSpacing: cityName.length > 12 ? "0.1em" : cityName.length > 8 ? "0.15em" : "0.2em",
+                  opacity: 0.9,
+                  letterSpacing: "0.1em",
                   // Dynamic font size: smaller for longer names, fits container width
                   fontSize: cityName.length > 14
                     ? "clamp(0.6rem, 4.5cqw, 1rem)"
@@ -442,14 +450,20 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
                 className="w-10 sm:w-14 h-px mx-auto mb-1.5 sm:mb-2"
                 style={{
                   backgroundColor: theme.colors.text,
-                  boxShadow: `0 0 8px ${theme.colors.bg}`,
+                  opacity: 0.9,
+                  boxShadow: `0 0 4px ${theme.colors.bg}`,
                 }}
               />
 
-              {/* State/Country Name */}
+              {/* State/Country Name - Space Grotesk */}
               <p
-                className="text-[10px] sm:text-xs font-light tracking-[0.15em] uppercase mb-0.5 sm:mb-1"
-                style={{ color: theme.colors.text, opacity: 0.9 }}
+                className="text-[10px] sm:text-xs font-light uppercase mb-0.5 sm:mb-1"
+                style={{
+                  fontFamily: "var(--font-space-grotesk), sans-serif",
+                  color: theme.colors.text,
+                  opacity: 0.9,
+                  letterSpacing: "0.1em",
+                }}
               >
                 {stateName}
               </p>
@@ -457,8 +471,13 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
               {/* Detail Line - coordinates, address, or none */}
               {detailLineType !== "none" && (
                 <p
-                  className="text-[8px] sm:text-[10px] font-light tracking-wider"
-                  style={{ color: theme.colors.text, opacity: 0.7 }}
+                  className="text-[8px] sm:text-[10px] font-light"
+                  style={{
+                    fontFamily: "var(--font-space-grotesk), sans-serif",
+                    color: theme.colors.text,
+                    opacity: 0.7,
+                    letterSpacing: "0.1em",
+                  }}
                 >
                   {detailLineType === "address" && focusPoint?.address
                     ? focusPoint.address.split(",")[0].trim()

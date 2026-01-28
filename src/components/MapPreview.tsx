@@ -33,6 +33,31 @@ interface MapPreviewProps {
   onToggleSafeZone?: () => void;
 }
 
+// Crosshair overlay component for manual adjustment mode
+function CrosshairOverlay({ visible, color }: { visible: boolean; color: string }) {
+  if (!visible) return null;
+
+  return (
+    <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center">
+      {/* Horizontal line */}
+      <div
+        className="absolute w-8 h-px"
+        style={{ backgroundColor: color, opacity: 0.6 }}
+      />
+      {/* Vertical line */}
+      <div
+        className="absolute w-px h-8"
+        style={{ backgroundColor: color, opacity: 0.6 }}
+      />
+      {/* Center dot */}
+      <div
+        className="absolute w-2 h-2 rounded-full"
+        style={{ backgroundColor: color, opacity: 0.8 }}
+      />
+    </div>
+  );
+}
+
 // Safe zone constants for portrait (18"x24") - 1.5" border for gallery wrap
 // Final render: 5400px × 7200px at 300 DPI
 const SAFE_ZONE_VERTICAL_PERCENT = (1.5 / 24) * 100; // 6.25%
@@ -56,8 +81,10 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
   const marker = useRef<mapboxgl.Marker | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [hasMovedMap, setHasMovedMap] = useState(false);
+  const [isManualMode, setIsManualMode] = useState(false);
+  const [hasMovedInManualMode, setHasMovedInManualMode] = useState(false);
   const currentThemeRef = useRef<string>(theme.id);
+  const lockedCenter = useRef<[number, number]>(center);
 
   // Get the actual center point (focus point or city center)
   const actualCenter: [number, number] = focusPoint
@@ -112,6 +139,26 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
     }
   };
 
+  // Toggle map interactivity based on manual mode
+  const setMapInteractive = useCallback((interactive: boolean) => {
+    if (!map.current) return;
+
+    if (interactive) {
+      map.current.dragPan.enable();
+      map.current.scrollZoom.enable();
+      map.current.boxZoom.enable();
+      map.current.doubleClickZoom.enable();
+      map.current.touchZoomRotate.enable();
+      map.current.touchZoomRotate.disableRotation(); // Keep rotation disabled
+    } else {
+      map.current.dragPan.disable();
+      map.current.scrollZoom.disable();
+      map.current.boxZoom.disable();
+      map.current.doubleClickZoom.disable();
+      map.current.touchZoomRotate.disable();
+    }
+  }, []);
+
   // Initialize map
   useEffect(() => {
     if (!mapContainer.current) return;
@@ -133,7 +180,8 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
       style: customStyle,
       center: actualCenter,
       zoom: zoom,
-      interactive: true,
+      // Start with interactivity disabled (locked mode by default)
+      interactive: false,
       attributionControl: false,
       preserveDrawingBuffer: true,
       // Disable rotation/pitch for flat architectural view
@@ -142,16 +190,17 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
       touchPitch: false,
     });
 
-    // Disable rotation controls
-    map.current.touchZoomRotate.disableRotation();
-
     map.current.on("load", () => {
       setIsLoading(false);
       updateMarker();
+      // Store the initial center position
+      lockedCenter.current = actualCenter;
     });
 
     map.current.on("moveend", () => {
-      setHasMovedMap(true);
+      if (isManualMode) {
+        setHasMovedInManualMode(true);
+      }
     });
 
     map.current.on("error", (e) => {
@@ -200,18 +249,37 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
     });
 
     updateMarker();
-    setHasMovedMap(false);
-  }, [center[0], center[1], focusPoint?.lat, focusPoint?.lng, zoom, isLoading]);
+    // Update the locked center when location changes
+    lockedCenter.current = actualCenter;
+    // Reset manual mode when location changes
+    setIsManualMode(false);
+    setHasMovedInManualMode(false);
+    setMapInteractive(false);
+  }, [center[0], center[1], focusPoint?.lat, focusPoint?.lng, zoom, isLoading, setMapInteractive]);
 
-  // Recenter map to original position
-  const handleRecenter = () => {
+  // Toggle manual adjustment mode
+  const handleToggleManualMode = () => {
+    if (isManualMode) {
+      // Locking position - disable interactivity
+      setMapInteractive(false);
+      setIsManualMode(false);
+    } else {
+      // Entering manual mode - enable interactivity
+      setMapInteractive(true);
+      setIsManualMode(true);
+      setHasMovedInManualMode(false);
+    }
+  };
+
+  // Reset map to original center position
+  const handleResetToCenter = () => {
     if (!map.current) return;
     map.current.flyTo({
-      center: actualCenter,
+      center: lockedCenter.current,
       zoom: zoom,
       duration: 800,
     });
-    setHasMovedMap(false);
+    setHasMovedInManualMode(false);
   };
 
   // Update marker when focus point or theme changes
@@ -300,15 +368,18 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
         {/* Map */}
         <div ref={mapContainer} className="w-full h-full" />
 
-        {/* Recenter button */}
-        {hasMovedMap && !isLoading && !error && (
+        {/* Crosshair overlay for manual adjustment mode */}
+        <CrosshairOverlay visible={isManualMode} color={theme.colors.text} />
+
+        {/* Reset to center button - only visible in manual mode when map has been moved */}
+        {isManualMode && hasMovedInManualMode && !isLoading && !error && (
           <button
-            onClick={handleRecenter}
-            className="absolute z-20 top-2 left-2 p-2 rounded-lg bg-white/80 dark:bg-black/80 hover:bg-white dark:hover:bg-black transition-colors shadow-sm"
-            title="Recenter map"
+            onClick={handleResetToCenter}
+            className="absolute z-20 top-2 left-2 px-3 py-1.5 rounded-lg bg-white/90 dark:bg-black/90 hover:bg-white dark:hover:bg-black transition-colors shadow-sm text-xs font-medium text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5"
+            title="Reset to center"
           >
             <svg
-              className="w-4 h-4 text-neutral-600 dark:text-neutral-400"
+              className="w-3.5 h-3.5"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -320,6 +391,7 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
                 d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
               />
             </svg>
+            Reset to Center
           </button>
         )}
 
@@ -414,20 +486,21 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
         <SafeZoneOverlay visible={showSafeZone} />
       </div>
 
-      {/* Safe zone toggle */}
-      {onToggleSafeZone && (
+      {/* Controls below the map */}
+      <div className="mt-3 flex flex-col gap-2">
+        {/* Manual adjustment toggle */}
         <button
-          onClick={onToggleSafeZone}
-          className="mt-3 flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
+          onClick={handleToggleManualMode}
+          className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
         >
           <span
             className={`w-4 h-4 rounded border flex items-center justify-center ${
-              showSafeZone
+              isManualMode
                 ? "bg-neutral-900 dark:bg-white border-neutral-900 dark:border-white"
                 : "border-neutral-400"
             }`}
           >
-            {showSafeZone && (
+            {isManualMode && (
               <svg
                 className="w-3 h-3 text-white dark:text-neutral-900"
                 fill="none"
@@ -443,9 +516,42 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
               </svg>
             )}
           </span>
-          Show Print Safe Zone
+          {isManualMode ? "Lock position" : "Adjust map position manually (optional)"}
         </button>
-      )}
+
+        {/* Safe zone toggle */}
+        {onToggleSafeZone && (
+          <button
+            onClick={onToggleSafeZone}
+            className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
+          >
+            <span
+              className={`w-4 h-4 rounded border flex items-center justify-center ${
+                showSafeZone
+                  ? "bg-neutral-900 dark:bg-white border-neutral-900 dark:border-white"
+                  : "border-neutral-400"
+              }`}
+            >
+              {showSafeZone && (
+                <svg
+                  className="w-3 h-3 text-white dark:text-neutral-900"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={3}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              )}
+            </span>
+            Show Print Safe Zone
+          </button>
+        )}
+      </div>
     </div>
   );
 });

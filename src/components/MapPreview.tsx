@@ -529,20 +529,27 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
           </div>
         )}
 
-        {/* Mapbox attribution - required for ToS, inside map but in wrap/bleed area */}
+        {/* Mapbox attribution - required for ToS, positioned bottom-right inside safe zone */}
         {!isLoading && !error && (
           <div
             className="absolute z-20 pointer-events-none"
             style={{
-              top: "4px",
-              right: "4px",
+              // Position 1.75" from edges (7.29% on 24" height, 9.72% on 18" width)
+              bottom: `${(1.75 / 24) * 100}%`,
+              right: `${(1.75 / 18) * 100}%`,
             }}
           >
             <span
-              className="text-[6px] font-light"
-              style={{ color: theme.colors.text, opacity: 0.3 }}
+              className="text-[5px] font-light"
+              style={{
+                color: theme.colors.text,
+                opacity: 0.3,
+                filter: "grayscale(100%)",
+                transform: "scale(0.8)",
+                transformOrigin: "bottom right",
+              }}
             >
-              © Mapbox
+              © Mapbox © OpenStreetMap
             </span>
           </div>
         )}

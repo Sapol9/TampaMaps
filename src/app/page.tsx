@@ -12,6 +12,7 @@ import StepVibe from "@/components/builder/StepVibe";
 import StepFocus, { type FocusPoint } from "@/components/builder/StepFocus";
 import StepBranding from "@/components/builder/StepBranding";
 import StepDetails, { type DetailLineType } from "@/components/builder/StepDetails";
+import StepInscription from "@/components/builder/StepInscription";
 import { type MapPreviewHandle } from "@/components/MapPreview";
 import Cart, { type CartItem } from "@/components/Cart";
 
@@ -43,7 +44,7 @@ export default function Home() {
   // Hero state
   const [showBuilder, setShowBuilder] = useState(false);
 
-  // Builder step state (now 5 steps)
+  // Builder step state (now 6 steps)
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
 
@@ -63,7 +64,7 @@ export default function Home() {
   // Step 5: Detail line
   const [detailLineType, setDetailLineType] = useState<DetailLineType>("coordinates");
 
-  // Personal note for back of canvas
+  // Step 6: Personal note for back of canvas (Inscription)
   const [personalNote, setPersonalNote] = useState("");
 
   // Map preview state
@@ -151,9 +152,14 @@ export default function Home() {
     }
   };
 
-  const handleComplete = () => {
+  const handleDetailsNext = () => {
     completeStep(5);
-    // Stay on step 5 but show completion state
+    setCurrentStep(6);
+  };
+
+  const handleComplete = () => {
+    completeStep(6);
+    // Stay on step 6 but show completion state
   };
 
   const handleAddToCart = async () => {
@@ -222,8 +228,8 @@ export default function Home() {
     }
     setPersonalNote(item.personalNote || "");
     // Go to last step and close cart
-    setCurrentStep(5);
-    setCompletedSteps([1, 2, 3, 4, 5]);
+    setCurrentStep(6);
+    setCompletedSteps([1, 2, 3, 4, 5, 6]);
     setIsCartOpen(false);
     setShowBuilder(true);
   };
@@ -243,7 +249,7 @@ export default function Home() {
   // Show map as soon as city is selected, using default theme if none selected yet
   const showMapPreview = selectedLocation;
   const previewTheme = selectedTheme || defaultTheme;
-  const isDesignComplete = completedSteps.includes(5);
+  const isDesignComplete = completedSteps.includes(6);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -300,7 +306,7 @@ export default function Home() {
                   Design Your <span className="font-semibold">Masterpiece</span>
                 </h2>
                 <p className="text-neutral-600 dark:text-neutral-400 mt-2">
-                  5 simple steps to create your custom architectural map art
+                  6 simple steps to create your custom architectural map art
                 </p>
               </div>
 
@@ -363,8 +369,17 @@ export default function Home() {
                       primaryText={primaryText || selectedLocation.name}
                       detailLineType={detailLineType}
                       onDetailLineTypeChange={setDetailLineType}
-                      onComplete={handleComplete}
+                      onComplete={handleDetailsNext}
                       onBack={() => setCurrentStep(4)}
+                    />
+                  )}
+
+                  {currentStep === 6 && (
+                    <StepInscription
+                      personalNote={personalNote}
+                      onPersonalNoteChange={setPersonalNote}
+                      onComplete={handleComplete}
+                      onBack={() => setCurrentStep(5)}
                     />
                   )}
                 </div>
@@ -422,7 +437,6 @@ export default function Home() {
                       onAddToCart={handleAddToCart}
                       isComplete={isDesignComplete}
                       personalNote={personalNote}
-                      onPersonalNoteChange={setPersonalNote}
                     />
                   </div>
                 </div>

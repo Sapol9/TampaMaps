@@ -1,32 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import BackOfCanvasPreview from "./BackOfCanvasPreview";
 
 interface ValueSidebarProps {
   price: number;
   onAddToCart: () => void;
   isComplete: boolean;
   personalNote?: string;
-  onPersonalNoteChange?: (note: string) => void;
 }
-
-const MAX_NOTE_LENGTH = 200;
 
 export default function ValueSidebar({
   price,
   onAddToCart,
   isComplete,
   personalNote = "",
-  onPersonalNoteChange,
 }: ValueSidebarProps) {
   const [showBackPreview, setShowBackPreview] = useState(false);
-
-  const handleNoteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value;
-    if (value.length <= MAX_NOTE_LENGTH) {
-      onPersonalNoteChange?.(value);
-    }
-  };
 
   return (
     <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 p-6 space-y-6">
@@ -60,7 +50,7 @@ export default function ValueSidebar({
             />
           </svg>
           <span className="text-neutral-600 dark:text-neutral-400">
-            18&quot; × 24&quot; Portrait Canvas
+            18&quot; &times; 24&quot; Portrait Canvas
           </span>
         </div>
         <div className="flex items-center gap-3 text-sm">
@@ -96,7 +86,7 @@ export default function ValueSidebar({
             />
           </svg>
           <span className="text-neutral-600 dark:text-neutral-400">
-            300 DPI / 5400×7200 px
+            300 DPI / 5400&times;7200 px
           </span>
         </div>
         <div className="flex items-center gap-3 text-sm">
@@ -114,10 +104,32 @@ export default function ValueSidebar({
             />
           </svg>
           <span className="text-neutral-600 dark:text-neutral-400">
-            Ready to Hang • Ships in 3-5 Days
+            Ready to Hang &bull; Ships in 3-5 Days
           </span>
         </div>
       </div>
+
+      {/* Inscription indicator when note exists */}
+      {personalNote && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-neutral-50 dark:bg-neutral-800 rounded-lg">
+          <svg
+            className="w-4 h-4 text-neutral-500 flex-shrink-0"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+            />
+          </svg>
+          <span className="text-xs text-neutral-600 dark:text-neutral-400 truncate">
+            Inscription added
+          </span>
+        </div>
+      )}
 
       {/* Add to Cart Button */}
       <button
@@ -133,96 +145,42 @@ export default function ValueSidebar({
       </button>
 
       {/* Back of Canvas Preview Toggle */}
-      <button
-        onClick={() => setShowBackPreview(!showBackPreview)}
-        className="w-full text-sm text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 flex items-center justify-center gap-2 transition-colors"
-      >
-        <svg
-          className="w-4 h-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={1.5}
-            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-          />
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={1.5}
-            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-          />
-        </svg>
-        {showBackPreview ? "Hide" : "View"} Back of Canvas
-      </button>
+      {personalNote && (
+        <>
+          <button
+            onClick={() => setShowBackPreview(!showBackPreview)}
+            className="w-full text-sm text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 flex items-center justify-center gap-2 transition-colors"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+              />
+            </svg>
+            {showBackPreview ? "Hide" : "Preview"} Back of Canvas
+          </button>
 
-      {/* Back of Canvas Preview with Personalized Note */}
-      {showBackPreview && (
-        <div className="space-y-4">
-          {/* Personalized Note Textarea */}
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-              Add a Custom Note (Printed on Back)
-            </label>
-            <textarea
-              value={personalNote}
-              onChange={handleNoteChange}
-              placeholder="Add a personal message, dedication, or story about this location..."
-              className="w-full px-3 py-2 text-sm border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-white resize-none transition-all"
-              rows={3}
+          {/* Back of Canvas Preview */}
+          {showBackPreview && (
+            <BackOfCanvasPreview
+              personalNote={personalNote}
+              onClose={() => setShowBackPreview(false)}
             />
-            <p className="text-xs text-neutral-400 mt-1 text-right">
-              {personalNote.length}/{MAX_NOTE_LENGTH} characters
-            </p>
-          </div>
-
-          {/* Back of Canvas Preview - Fixed Portrait */}
-          <div className="p-4 bg-neutral-100 dark:bg-neutral-800 rounded-xl">
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 text-center mb-3 font-medium">
-              Live Preview
-            </p>
-            <div className="aspect-[3/4] bg-white dark:bg-neutral-700 rounded-lg border border-neutral-200 dark:border-neutral-600 p-4 flex flex-col">
-              {/* MapMarked Logo */}
-              <div className="text-center mb-3">
-                <span className="text-sm font-semibold text-neutral-900 dark:text-white tracking-wide">
-                  MapMarked
-                </span>
-                <p className="text-[10px] text-neutral-400">
-                  Premium Architectural Map Art
-                </p>
-              </div>
-
-              {/* Personal Note Section */}
-              <div className="flex-1 flex items-center justify-center">
-                {personalNote ? (
-                  <p className="text-xs text-neutral-600 dark:text-neutral-300 text-center leading-relaxed px-2 italic">
-                    &ldquo;{personalNote}&rdquo;
-                  </p>
-                ) : (
-                  <p className="text-xs text-neutral-400 text-center italic">
-                    Your personal note will appear here
-                  </p>
-                )}
-              </div>
-
-              {/* Dimensions & Info */}
-              <div className="text-center mt-3 pt-3 border-t border-neutral-200 dark:border-neutral-600">
-                <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
-                  18&quot; × 24&quot; • Portrait Canvas
-                </p>
-                <p className="text-[10px] text-neutral-400 mt-1">
-                  mapmarked.com
-                </p>
-              </div>
-            </div>
-            <p className="text-xs text-neutral-500 text-center mt-3">
-              This label is printed on the back of your canvas
-            </p>
-          </div>
-        </div>
+          )}
+        </>
       )}
     </div>
   );

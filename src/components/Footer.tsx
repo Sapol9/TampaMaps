@@ -29,7 +29,7 @@ export default function Footer() {
             </h4>
             <ul className="space-y-2 text-sm text-neutral-600 dark:text-neutral-400">
               <li>18" × 24" Gallery Canvas</li>
-              <li>17 Signature Styles</li>
+              <li>5 Signature Series Styles</li>
               <li>Free US Shipping</li>
               <li>3-5 Day Delivery</li>
             </ul>
@@ -62,12 +62,12 @@ export default function Footer() {
           </p>
 
           {/* Copyright & Attribution */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-neutral-400">
-            <p>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-neutral-400 opacity-60">
+            <p className="font-light">
               © {currentYear} {SITE.name}. All rights reserved.
             </p>
             <div className="flex items-center gap-4">
-              <span>Map data © Mapbox © OpenStreetMap</span>
+              <span className="font-light">Map data © Mapbox © OpenStreetMap</span>
             </div>
           </div>
         </div>

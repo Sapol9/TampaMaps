@@ -1,11 +1,15 @@
 import type { Theme } from "./applyTheme";
 
 /**
- * Creates a custom Mapbox style JSON with only the layers we need,
- * using exact theme colors for a clean maptoposter-style aesthetic.
+ * Creates a custom Mapbox style JSON for the Architectural Signature Series.
  *
- * This approach gives us complete control over rendering, unlike
- * trying to override Mapbox's pre-built styles.
+ * Design Rules:
+ * - Zero Text Labels: Remove 100% of labels, street names, and icons
+ * - Pure Vector Logic: No 3D buildings, shadows, or satellite imagery
+ * - Standardized Line Weights at zoom 13:
+ *   - Motorways: 1.8px
+ *   - Primary Roads: 1.2px
+ *   - Residential/Secondary: 0.4px
  *
  * Available source layers in mapbox-streets-v8:
  * - admin, aeroway, building, landuse, landuse_overlay,
@@ -13,17 +17,18 @@ import type { Theme } from "./applyTheme";
  */
 export function createCustomStyle(theme: Theme): mapboxgl.Style {
   const { colors } = theme;
+  const roadOpacity = colors.road_opacity ?? 0.8;
 
   return {
     version: 8,
-    name: `TampaMaps - ${theme.name}`,
+    name: `MapMarked - ${theme.name}`,
     sources: {
       "mapbox-streets": {
         type: "vector",
         url: "mapbox://mapbox.mapbox-streets-v8",
       },
     },
-    glyphs: "mapbox://fonts/mapbox/{fontstack}/{range}.pbf",
+    // No glyphs needed - zero text labels
     layers: [
       // Background - this IS the land color
       {
@@ -34,25 +39,7 @@ export function createCustomStyle(theme: Theme): mapboxgl.Style {
         },
       },
 
-      // Landuse - parks, forests, etc.
-      {
-        id: "landuse-park",
-        type: "fill",
-        source: "mapbox-streets",
-        "source-layer": "landuse",
-        filter: [
-          "match",
-          ["get", "class"],
-          ["park", "grass", "pitch", "cemetery", "golf_course", "hospital", "school"],
-          true,
-          false,
-        ],
-        paint: {
-          "fill-color": colors.parks,
-        },
-      },
-
-      // Water fill
+      // Water fill - subtle differentiation from land
       {
         id: "water",
         type: "fill",
@@ -63,7 +50,7 @@ export function createCustomStyle(theme: Theme): mapboxgl.Style {
         },
       },
 
-      // Waterways (rivers, streams)
+      // Waterways (rivers, streams) - subtle lines
       {
         id: "waterway",
         type: "line",
@@ -76,28 +63,18 @@ export function createCustomStyle(theme: Theme): mapboxgl.Style {
             ["linear"],
             ["zoom"],
             8,
+            0.5,
+            13,
             1,
-            14,
-            3,
+            18,
+            2,
           ],
         },
       },
 
-      // Buildings
-      {
-        id: "building",
-        type: "fill",
-        source: "mapbox-streets",
-        "source-layer": "building",
-        minzoom: 13,
-        paint: {
-          "fill-color": colors.parks,
-          "fill-opacity": 0.6,
-        },
-      },
-
-      // ===== ROADS =====
-      // Order matters: draw from lowest to highest priority
+      // ===== ROADS - THE ARCHITECTURAL SKELETON =====
+      // Standardized line weights: Motorway 1.8px, Primary 1.2px, Secondary/Residential 0.4px at zoom 13
+      // Order: draw from lowest to highest priority
 
       // Road - service/minor (smallest roads)
       {
@@ -105,6 +82,7 @@ export function createCustomStyle(theme: Theme): mapboxgl.Style {
         type: "line",
         source: "mapbox-streets",
         "source-layer": "road",
+        minzoom: 14,
         filter: [
           "match",
           ["get", "class"],
@@ -117,17 +95,16 @@ export function createCustomStyle(theme: Theme): mapboxgl.Style {
           "line-join": "round",
         },
         paint: {
-          "line-color": colors.road_residential,
+          "line-color": colors.road_default,
+          "line-opacity": roadOpacity * 0.6,
           "line-width": [
             "interpolate",
             ["exponential", 1.5],
             ["zoom"],
-            10,
-            0.5,
             14,
-            1,
+            0.2,
             18,
-            4,
+            1.5,
           ],
         },
       },
@@ -138,6 +115,7 @@ export function createCustomStyle(theme: Theme): mapboxgl.Style {
         type: "line",
         source: "mapbox-streets",
         "source-layer": "road",
+        minzoom: 12,
         filter: [
           "match",
           ["get", "class"],
@@ -151,16 +129,17 @@ export function createCustomStyle(theme: Theme): mapboxgl.Style {
         },
         paint: {
           "line-color": colors.road_residential,
+          "line-opacity": roadOpacity * 0.7,
           "line-width": [
             "interpolate",
             ["exponential", 1.5],
             ["zoom"],
             10,
-            0.5,
-            14,
-            2,
+            0.1,
+            13,
+            0.4, // 0.4px at zoom 13
             18,
-            8,
+            3,
           ],
         },
       },
@@ -171,6 +150,7 @@ export function createCustomStyle(theme: Theme): mapboxgl.Style {
         type: "line",
         source: "mapbox-streets",
         "source-layer": "road",
+        minzoom: 11,
         filter: ["==", ["get", "class"], "tertiary"],
         layout: {
           "line-cap": "round",
@@ -178,16 +158,17 @@ export function createCustomStyle(theme: Theme): mapboxgl.Style {
         },
         paint: {
           "line-color": colors.road_tertiary,
+          "line-opacity": roadOpacity * 0.8,
           "line-width": [
             "interpolate",
             ["exponential", 1.5],
             ["zoom"],
             10,
-            0.5,
-            14,
-            3,
+            0.2,
+            13,
+            0.4, // 0.4px at zoom 13
             18,
-            12,
+            5,
           ],
         },
       },
@@ -198,6 +179,7 @@ export function createCustomStyle(theme: Theme): mapboxgl.Style {
         type: "line",
         source: "mapbox-streets",
         "source-layer": "road",
+        minzoom: 9,
         filter: ["==", ["get", "class"], "secondary"],
         layout: {
           "line-cap": "round",
@@ -205,16 +187,17 @@ export function createCustomStyle(theme: Theme): mapboxgl.Style {
         },
         paint: {
           "line-color": colors.road_secondary,
+          "line-opacity": roadOpacity * 0.9,
           "line-width": [
             "interpolate",
             ["exponential", 1.5],
             ["zoom"],
             8,
-            0.5,
-            14,
-            4,
+            0.2,
+            13,
+            0.4, // 0.4px at zoom 13
             18,
-            16,
+            8,
           ],
         },
       },
@@ -225,6 +208,7 @@ export function createCustomStyle(theme: Theme): mapboxgl.Style {
         type: "line",
         source: "mapbox-streets",
         "source-layer": "road",
+        minzoom: 7,
         filter: ["==", ["get", "class"], "primary"],
         layout: {
           "line-cap": "round",
@@ -232,16 +216,17 @@ export function createCustomStyle(theme: Theme): mapboxgl.Style {
         },
         paint: {
           "line-color": colors.road_primary,
+          "line-opacity": roadOpacity,
           "line-width": [
             "interpolate",
             ["exponential", 1.5],
             ["zoom"],
             6,
-            0.5,
-            14,
-            5,
+            0.3,
+            13,
+            1.2, // 1.2px at zoom 13
             18,
-            20,
+            12,
           ],
         },
       },
@@ -252,6 +237,7 @@ export function createCustomStyle(theme: Theme): mapboxgl.Style {
         type: "line",
         source: "mapbox-streets",
         "source-layer": "road",
+        minzoom: 5,
         filter: ["==", ["get", "class"], "trunk"],
         layout: {
           "line-cap": "round",
@@ -259,26 +245,28 @@ export function createCustomStyle(theme: Theme): mapboxgl.Style {
         },
         paint: {
           "line-color": colors.road_motorway,
+          "line-opacity": roadOpacity,
           "line-width": [
             "interpolate",
             ["exponential", 1.5],
             ["zoom"],
             5,
-            0.5,
-            14,
-            6,
+            0.4,
+            13,
+            1.5, // Slightly smaller than motorway
             18,
-            24,
+            16,
           ],
         },
       },
 
-      // Road - motorway (highways)
+      // Road - motorway (highways) - The dominant arteries
       {
         id: "road-motorway",
         type: "line",
         source: "mapbox-streets",
         "source-layer": "road",
+        minzoom: 4,
         filter: ["==", ["get", "class"], "motorway"],
         layout: {
           "line-cap": "round",
@@ -286,22 +274,23 @@ export function createCustomStyle(theme: Theme): mapboxgl.Style {
         },
         paint: {
           "line-color": colors.road_motorway,
+          "line-opacity": roadOpacity,
           "line-width": [
             "interpolate",
             ["exponential", 1.5],
             ["zoom"],
-            5,
-            1,
-            14,
-            8,
+            4,
+            0.5,
+            13,
+            1.8, // 1.8px at zoom 13
             18,
-            28,
+            20,
           ],
         },
       },
 
       // ===== BRIDGES =====
-      // Draw bridges on top of regular roads
+      // Draw bridges on top of regular roads with same styling
 
       // Bridge - secondary
       {
@@ -320,16 +309,17 @@ export function createCustomStyle(theme: Theme): mapboxgl.Style {
         },
         paint: {
           "line-color": colors.road_secondary,
+          "line-opacity": roadOpacity * 0.9,
           "line-width": [
             "interpolate",
             ["exponential", 1.5],
             ["zoom"],
             8,
-            0.5,
-            14,
-            4,
+            0.2,
+            13,
+            0.4,
             18,
-            16,
+            8,
           ],
         },
       },
@@ -351,16 +341,17 @@ export function createCustomStyle(theme: Theme): mapboxgl.Style {
         },
         paint: {
           "line-color": colors.road_primary,
+          "line-opacity": roadOpacity,
           "line-width": [
             "interpolate",
             ["exponential", 1.5],
             ["zoom"],
             6,
-            0.5,
-            14,
-            5,
+            0.3,
+            13,
+            1.2,
             18,
-            20,
+            12,
           ],
         },
       },
@@ -388,16 +379,17 @@ export function createCustomStyle(theme: Theme): mapboxgl.Style {
         },
         paint: {
           "line-color": colors.road_motorway,
+          "line-opacity": roadOpacity,
           "line-width": [
             "interpolate",
             ["exponential", 1.5],
             ["zoom"],
-            5,
-            1,
-            14,
-            8,
+            4,
+            0.5,
+            13,
+            1.8,
             18,
-            28,
+            20,
           ],
         },
       },

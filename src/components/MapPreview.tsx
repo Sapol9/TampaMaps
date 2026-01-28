@@ -495,6 +495,7 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
           isRendering={isRendering}
           duration={2000}
           onComplete={onRenderComplete}
+          themeName={theme.name}
         />
       </div>
 

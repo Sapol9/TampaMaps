@@ -1,26 +1,53 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface RenderingOverlayProps {
   isRendering: boolean;
   duration?: number; // Duration in ms
   onComplete?: () => void;
+  themeName?: string; // Optional theme name for customized messages
 }
 
-const STATUS_MESSAGES = [
-  "Initializing Vector Data Layers...",
-  "Rendering 300 DPI Architectural Detail...",
-  "Finalizing High-Resolution Vector Snap...",
-];
+// Theme-specific status messages
+const getStatusMessages = (themeName?: string): string[] => {
+  // Base messages
+  const baseMessages = [
+    "Initializing Vector Data Layers...",
+    "Rendering 300 DPI Architectural Detail...",
+    "Finalizing High-Resolution Vector Snap...",
+  ];
+
+  // Theme-specific middle messages
+  const themeMessages: Record<string, string> = {
+    "The Obsidian": "Applying Obsidian Vector Layers...",
+    "The Cobalt": "Rendering Blueprint Heritage Vectors...",
+    "The Parchment": "Tracing Architectural Draft Lines...",
+    "The Emerald": "Processing Verdant Geometry Paths...",
+    "The Copper": "Forging Industrial Copper Routes...",
+  };
+
+  if (themeName && themeMessages[themeName]) {
+    return [
+      "Initializing Vector Data Layers...",
+      themeMessages[themeName],
+      "Finalizing High-Resolution Vector Snap...",
+    ];
+  }
+
+  return baseMessages;
+};
 
 export default function RenderingOverlay({
   isRendering,
   duration = 2000,
   onComplete,
+  themeName,
 }: RenderingOverlayProps) {
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
+
+  const statusMessages = useMemo(() => getStatusMessages(themeName), [themeName]);
 
   // Cycle through status messages
   useEffect(() => {
@@ -29,16 +56,16 @@ export default function RenderingOverlay({
       return;
     }
 
-    const messageInterval = duration / STATUS_MESSAGES.length;
+    const messageInterval = duration / statusMessages.length;
     const interval = setInterval(() => {
       setCurrentMessageIndex((prev) => {
         const next = prev + 1;
-        return next < STATUS_MESSAGES.length ? next : prev;
+        return next < statusMessages.length ? next : prev;
       });
     }, messageInterval);
 
     return () => clearInterval(interval);
-  }, [isRendering, duration]);
+  }, [isRendering, duration, statusMessages.length]);
 
   // Trigger onComplete after duration
   useEffect(() => {
@@ -122,7 +149,7 @@ export default function RenderingOverlay({
                 transition={{ duration: 0.2 }}
                 className="text-sm font-light tracking-wide text-white/90"
               >
-                {STATUS_MESSAGES[currentMessageIndex]}
+                {statusMessages[currentMessageIndex]}
               </motion.p>
             </AnimatePresence>
           </div>

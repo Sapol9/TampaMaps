@@ -12,14 +12,19 @@ export interface ThemeColors {
   road_tertiary: string;
   road_residential: string;
   road_default: string;
+  road_opacity?: number; // Global road opacity for the theme
 }
 
 export interface Theme {
   id: string;
   name: string;
-  moodTag: string;
+  seriesNumber?: string; // "01", "02", etc. for Signature Series
+  subtitle?: string; // "Stealth Architecture", etc.
+  vibe?: string; // Short vibe description
   description: string;
   colors: ThemeColors;
+  // Legacy support
+  moodTag?: string;
 }
 
 /**

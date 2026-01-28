@@ -5,192 +5,168 @@ import type { Theme } from "@/lib/mapbox/applyTheme";
 
 const typedThemes = themes as Theme[];
 
-// Define mood categories with descriptions
-const MOOD_CATEGORIES = [
-  {
-    id: "Technical",
-    name: "Technical",
-    description: "Clean, precise, architectural aesthetics",
-    icon: (
-      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-      </svg>
-    ),
-  },
-  {
-    id: "Elemental",
-    name: "Elemental",
-    description: "Natural, organic, earth-inspired tones",
-    icon: (
-      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-      </svg>
-    ),
-  },
-  {
-    id: "Modern",
-    name: "Modern",
-    description: "Contemporary, bold, artistic styles",
-    icon: (
-      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-      </svg>
-    ),
-  },
-];
-
 interface StepVibeProps {
   selectedMood: string | null;
   selectedTheme: Theme | null;
   onMoodSelect: (mood: string) => void;
-  onThemeSelect: (theme: Theme) => void;
+  onThemeSelect: (theme: Theme | null) => void;
   onNext: () => void;
   onBack: () => void;
 }
 
 export default function StepVibe({
-  selectedMood,
   selectedTheme,
-  onMoodSelect,
   onThemeSelect,
   onNext,
   onBack,
 }: StepVibeProps) {
-  // Get themes for selected mood
-  const themesForMood = selectedMood
-    ? typedThemes.filter((t) => t.moodTag === selectedMood)
-    : [];
-
-  const handleMoodSelect = (moodId: string) => {
-    onMoodSelect(moodId);
-    // Auto-select first theme in mood
-    const firstTheme = typedThemes.find((t) => t.moodTag === moodId);
-    if (firstTheme) {
-      onThemeSelect(firstTheme);
-    }
-  };
-
   return (
     <div className="space-y-8">
       <div className="text-center space-y-2">
         <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white">
-          Choose Your Vibe
+          Architectural Signature Series
         </h2>
         <p className="text-neutral-600 dark:text-neutral-400">
-          Select a mood category, then pick your perfect style
+          Five proprietary styles engineered for museum-grade canvas prints
         </p>
       </div>
 
-      {/* Mood Categories */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
-        {MOOD_CATEGORIES.map((mood) => (
-          <button
-            key={mood.id}
-            onClick={() => handleMoodSelect(mood.id)}
-            className={`p-6 rounded-2xl border-2 transition-all text-left ${
-              selectedMood === mood.id
-                ? "border-neutral-900 dark:border-white bg-neutral-900 dark:bg-white text-white dark:text-neutral-900"
-                : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600"
-            }`}
-          >
-            <div
-              className={`mb-3 ${
-                selectedMood === mood.id
-                  ? "text-white dark:text-neutral-900"
-                  : "text-neutral-600 dark:text-neutral-400"
-              }`}
-            >
-              {mood.icon}
-            </div>
-            <h3
-              className={`font-semibold mb-1 ${
-                selectedMood === mood.id
-                  ? "text-white dark:text-neutral-900"
-                  : "text-neutral-900 dark:text-white"
-              }`}
-            >
-              {mood.name}
-            </h3>
-            <p
-              className={`text-sm ${
-                selectedMood === mood.id
-                  ? "text-white/70 dark:text-neutral-900/70"
-                  : "text-neutral-500"
-              }`}
-            >
-              {mood.description}
-            </p>
-          </button>
-        ))}
-      </div>
+      {/* Signature Series Themes */}
+      <div className="space-y-4">
+        {typedThemes.map((theme) => {
+          const isSelected = selectedTheme?.id === theme.id;
 
-      {/* Theme Selection */}
-      {selectedMood && themesForMood.length > 0 && (
-        <div className="space-y-4">
-          <h3 className="text-lg font-medium text-center text-neutral-900 dark:text-white">
-            {selectedMood} Styles
-          </h3>
-          <div className="flex flex-wrap justify-center gap-3">
-            {themesForMood.map((theme) => (
-              <button
-                key={theme.id}
-                onClick={() => onThemeSelect(theme)}
-                className={`group relative px-4 py-2 rounded-full border-2 transition-all ${
-                  selectedTheme?.id === theme.id
-                    ? "border-neutral-900 dark:border-white"
-                    : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600"
-                }`}
-              >
-                {/* Color preview dots */}
-                <div className="flex items-center gap-2">
-                  <div className="flex -space-x-1">
-                    <div
-                      className="w-4 h-4 rounded-full border border-white/20"
-                      style={{ backgroundColor: theme.colors.bg }}
-                    />
-                    <div
-                      className="w-4 h-4 rounded-full border border-white/20"
-                      style={{ backgroundColor: theme.colors.road_motorway }}
-                    />
-                    <div
-                      className="w-4 h-4 rounded-full border border-white/20"
-                      style={{ backgroundColor: theme.colors.water }}
-                    />
-                  </div>
-                  <span
-                    className={`text-sm font-medium ${
-                      selectedTheme?.id === theme.id
-                        ? "text-neutral-900 dark:text-white"
-                        : "text-neutral-600 dark:text-neutral-400"
-                    }`}
-                  >
-                    {theme.name}
-                  </span>
-                </div>
-
-                {/* Selected indicator */}
-                {selectedTheme?.id === theme.id && (
-                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-neutral-900 dark:bg-white rounded-full flex items-center justify-center">
-                    <svg
-                      className="w-2.5 h-2.5 text-white dark:text-neutral-900"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={3}
-                        d="M5 13l4 4L19 7"
+          return (
+            <button
+              key={theme.id}
+              onClick={() => onThemeSelect(theme)}
+              className={`w-full text-left p-5 rounded-2xl border-2 transition-all duration-200 ${
+                isSelected
+                  ? "border-neutral-900 dark:border-white shadow-lg"
+                  : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600"
+              }`}
+            >
+              <div className="flex items-start gap-4">
+                {/* Color Preview Swatch */}
+                <div
+                  className="w-16 h-20 rounded-lg flex-shrink-0 overflow-hidden relative shadow-sm"
+                  style={{ backgroundColor: theme.colors.bg }}
+                >
+                  {/* Mini map preview with roads */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <svg viewBox="0 0 40 50" className="w-full h-full p-2">
+                      {/* Simplified road network preview */}
+                      <line
+                        x1="5"
+                        y1="25"
+                        x2="35"
+                        y2="25"
+                        stroke={theme.colors.road_motorway}
+                        strokeWidth="1.8"
+                        strokeOpacity={theme.colors.road_opacity ?? 0.8}
+                      />
+                      <line
+                        x1="20"
+                        y1="8"
+                        x2="20"
+                        y2="42"
+                        stroke={theme.colors.road_primary}
+                        strokeWidth="1.2"
+                        strokeOpacity={theme.colors.road_opacity ?? 0.8}
+                      />
+                      <line
+                        x1="8"
+                        y1="15"
+                        x2="32"
+                        y2="35"
+                        stroke={theme.colors.road_secondary}
+                        strokeWidth="0.6"
+                        strokeOpacity={(theme.colors.road_opacity ?? 0.8) * 0.8}
+                      />
+                      <line
+                        x1="32"
+                        y1="15"
+                        x2="8"
+                        y2="35"
+                        stroke={theme.colors.road_residential}
+                        strokeWidth="0.4"
+                        strokeOpacity={(theme.colors.road_opacity ?? 0.8) * 0.6}
                       />
                     </svg>
                   </div>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+                  {/* Series number badge */}
+                  <div
+                    className="absolute bottom-1 right-1 text-[8px] font-bold px-1 rounded"
+                    style={{
+                      backgroundColor: theme.colors.text,
+                      color: theme.colors.bg,
+                      opacity: 0.9,
+                    }}
+                  >
+                    {theme.seriesNumber}
+                  </div>
+                </div>
+
+                {/* Theme Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-semibold text-neutral-900 dark:text-white">
+                      {theme.name}
+                    </h3>
+                    {isSelected && (
+                      <span className="w-5 h-5 bg-neutral-900 dark:bg-white rounded-full flex items-center justify-center">
+                        <svg
+                          className="w-3 h-3 text-white dark:text-neutral-900"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={3}
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium mb-1">
+                    {theme.subtitle}
+                  </p>
+                  <p className="text-xs text-neutral-400 dark:text-neutral-500">
+                    {theme.vibe}
+                  </p>
+                </div>
+
+                {/* Color Palette Pills */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-1">
+                    <div
+                      className="w-5 h-5 rounded-full border border-white/20 shadow-sm"
+                      style={{ backgroundColor: theme.colors.bg }}
+                      title="Land"
+                    />
+                    <div
+                      className="w-5 h-5 rounded-full border border-white/20 shadow-sm"
+                      style={{ backgroundColor: theme.colors.water }}
+                      title="Water"
+                    />
+                  </div>
+                  <div
+                    className="w-full h-2 rounded-full"
+                    style={{
+                      backgroundColor: theme.colors.road_motorway,
+                      opacity: theme.colors.road_opacity ?? 0.8,
+                    }}
+                    title="Roads"
+                  />
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
 
       {/* Navigation Buttons */}
       <div className="flex justify-center gap-4 pt-4">

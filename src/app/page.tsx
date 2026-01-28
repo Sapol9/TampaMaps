@@ -19,6 +19,7 @@ import Cart, { type CartItem } from "@/components/Cart";
 // New premium components
 import Hero from "@/components/Hero";
 import ProcessSteps from "@/components/ProcessSteps";
+import ProductSpecs from "@/components/ProductSpecs";
 import Features from "@/components/Features";
 import Footer from "@/components/Footer";
 import ValueSidebar from "@/components/ValueSidebar";
@@ -252,6 +253,7 @@ export default function Home() {
         {!showBuilder && (
           <>
             <Hero onGetStarted={handleGetStarted} />
+            <ProductSpecs />
             <ProcessSteps />
             <Features />
           </>

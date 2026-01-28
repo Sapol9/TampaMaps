@@ -34,14 +34,17 @@ export default function ValueSidebar({
 
   return (
     <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 p-6 space-y-6">
-      {/* Price */}
-      <div className="text-center pb-4 border-b border-neutral-200 dark:border-neutral-800">
+      {/* Price & Free Shipping */}
+      <div className="text-center pb-5 border-b border-neutral-200 dark:border-neutral-800">
         <div className="text-3xl font-semibold text-neutral-900 dark:text-white">
           ${price.toFixed(2)}
         </div>
-        <p className="text-sm text-green-600 dark:text-green-500 mt-1 font-medium">
-          Includes Free Shipping to Lower 48
-        </p>
+        <div className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm font-medium">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          Free Shipping
+        </div>
       </div>
 
       {/* Product Specs */}
@@ -61,7 +64,7 @@ export default function ValueSidebar({
             />
           </svg>
           <span className="text-neutral-600 dark:text-neutral-400">
-            {dimensions} Gallery Wrap Canvas
+            {dimensions} Archival Canvas
           </span>
         </div>
         <div className="flex items-center gap-3 text-sm">
@@ -79,7 +82,7 @@ export default function ValueSidebar({
             />
           </svg>
           <span className="text-neutral-600 dark:text-neutral-400">
-            1.25" Deep Museum Profile
+            1.25&quot; Kiln-Dried Wood Frame
           </span>
         </div>
         <div className="flex items-center gap-3 text-sm">
@@ -93,11 +96,11 @@ export default function ValueSidebar({
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={1.5}
-              d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+              d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6"
             />
           </svg>
           <span className="text-neutral-600 dark:text-neutral-400">
-            Archival-Quality Materials
+            300 DPI / 5400×7200 px
           </span>
         </div>
         <div className="flex items-center gap-3 text-sm">
@@ -115,7 +118,7 @@ export default function ValueSidebar({
             />
           </svg>
           <span className="text-neutral-600 dark:text-neutral-400">
-            Ships in 3-5 Business Days
+            Ready to Hang • Ships in 3-5 Days
           </span>
         </div>
       </div>

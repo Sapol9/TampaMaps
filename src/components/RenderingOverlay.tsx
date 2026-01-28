@@ -86,7 +86,7 @@ export default function RenderingOverlay({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
-          className="absolute inset-0 z-30 flex flex-col items-center justify-center backdrop-blur-md bg-black/40"
+          className="absolute inset-0 z-30 flex flex-col items-center justify-center backdrop-blur-md bg-black/40 rendering-overlay"
         >
           {/* Geometric spinner */}
           <div className="relative w-16 h-16 mb-6">

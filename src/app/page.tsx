@@ -165,13 +165,22 @@ export default function Home() {
   const handleAddToCart = async () => {
     if (!selectedLocation || !selectedTheme) return;
 
-    // Trigger rendering overlay for final high-res snap
+    // Trigger rendering overlay to show the user we're capturing
     triggerRenderingOverlay();
 
-    // Wait for rendering overlay to complete before capturing
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    // Wait for map to be fully idle (all tiles loaded and rendered)
+    await mapPreviewRef.current?.waitForIdle();
 
-    // Capture map thumbnail (now async with html2canvas)
+    // Small delay to let rendering overlay fade in visually
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Stop the rendering overlay before capturing so it's not in the image
+    setIsRendering(false);
+
+    // Give a moment for the overlay to disappear from DOM
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Capture map thumbnail (waits for idle internally as well)
     const thumbnail = await mapPreviewRef.current?.captureImage() ?? undefined;
 
     const newItem: CartItem = {

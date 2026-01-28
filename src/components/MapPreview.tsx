@@ -11,6 +11,7 @@ import RenderingOverlay from "./RenderingOverlay";
 
 export interface MapPreviewHandle {
   captureImage: () => Promise<string | null>;
+  waitForIdle: () => Promise<void>;
 }
 
 interface FocusPoint {
@@ -294,10 +295,45 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
     }
   }, [focusPoint, theme.colors.text, isLoading]);
 
+  // Wait for Mapbox map to be idle (all tiles loaded and rendered)
+  const waitForIdle = useCallback((): Promise<void> => {
+    return new Promise((resolve) => {
+      if (!map.current) {
+        resolve();
+        return;
+      }
+
+      // Check if already idle
+      if (!map.current.isMoving() && !map.current.isZooming() && map.current.loaded() && map.current.areTilesLoaded()) {
+        // Add a small delay to ensure WebGL has finished rendering
+        setTimeout(resolve, 100);
+        return;
+      }
+
+      // Wait for idle event
+      const handleIdle = () => {
+        // Additional delay to ensure all rendering is complete
+        setTimeout(resolve, 100);
+      };
+
+      map.current.once("idle", handleIdle);
+
+      // Fallback timeout in case idle never fires
+      setTimeout(() => {
+        map.current?.off("idle", handleIdle);
+        resolve();
+      }, 3000);
+    });
+  }, []);
+
   // Capture the full preview including text overlay using html2canvas
   // Final output: 5400px × 7200px at 300 DPI for portrait canvas
   const captureImage = useCallback(async (): Promise<string | null> => {
     if (!previewContainer.current) return null;
+
+    // Wait for map to be fully rendered before capturing
+    await waitForIdle();
+
     try {
       const canvas = await html2canvas(previewContainer.current, {
         useCORS: true,
@@ -305,9 +341,13 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
         backgroundColor: theme.colors.bg,
         scale: 2, // Higher quality
         logging: false,
-        // Ignore the safe zone overlay in the capture
+        // Ignore overlays that shouldn't be in the final capture
         ignoreElements: (element) => {
-          return element.classList?.contains("safe-zone-overlay") ?? false;
+          const classList = element.classList;
+          if (!classList) return false;
+          // Ignore safe zone overlay and rendering overlay
+          return classList.contains("safe-zone-overlay") ||
+                 classList.contains("rendering-overlay");
         },
       });
       return canvas.toDataURL("image/jpeg", 0.9);
@@ -315,12 +355,13 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
       console.error("Failed to capture image:", err);
       return null;
     }
-  }, [theme.colors.bg]);
+  }, [theme.colors.bg, waitForIdle]);
 
-  // Expose captureImage method via ref
+  // Expose methods via ref
   useImperativeHandle(ref, () => ({
     captureImage,
-  }), [captureImage]);
+    waitForIdle,
+  }), [captureImage, waitForIdle]);
 
   return (
     <div className="relative w-full">

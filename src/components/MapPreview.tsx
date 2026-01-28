@@ -8,6 +8,7 @@ import { createCustomStyle } from "@/lib/mapbox/createStyle";
 import type { Theme } from "@/lib/mapbox/applyTheme";
 import SafeZoneOverlay from "./SafeZoneOverlay";
 import RenderingOverlay from "./RenderingOverlay";
+import HomePreviewMockup from "./HomePreviewMockup";
 
 export interface MapPreviewHandle {
   captureImage: () => Promise<string | null>;
@@ -89,6 +90,8 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
   const [error, setError] = useState<string | null>(null);
   const [isManualMode, setIsManualMode] = useState(false);
   const [hasMovedInManualMode, setHasMovedInManualMode] = useState(false);
+  const [showHomePreview, setShowHomePreview] = useState(false);
+  const [previewThumbnail, setPreviewThumbnail] = useState<string | null>(null);
   const currentThemeRef = useRef<string>(theme.id);
   const lockedCenter = useRef<[number, number]>(center);
 
@@ -631,7 +634,44 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
             Show Print Safe Zone
           </button>
         )}
+
+        {/* View in Room button */}
+        <button
+          onClick={async () => {
+            // Capture current preview for the mockup
+            const thumbnail = await captureImage();
+            setPreviewThumbnail(thumbnail);
+            setShowHomePreview(true);
+          }}
+          disabled={isLoading || !!error}
+          className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+            />
+          </svg>
+          View in Room
+        </button>
       </div>
+
+      {/* Home Preview Mockup Modal */}
+      <HomePreviewMockup
+        mapThumbnail={previewThumbnail}
+        theme={theme}
+        cityName={cityName}
+        stateName={stateName}
+        isVisible={showHomePreview}
+        onClose={() => setShowHomePreview(false)}
+      />
     </div>
   );
 });

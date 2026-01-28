@@ -7,6 +7,7 @@ import html2canvas from "html2canvas";
 import { createCustomStyle } from "@/lib/mapbox/createStyle";
 import type { Theme } from "@/lib/mapbox/applyTheme";
 import SafeZoneOverlay from "./SafeZoneOverlay";
+import RenderingOverlay from "./RenderingOverlay";
 
 export interface MapPreviewHandle {
   captureImage: () => Promise<string | null>;
@@ -31,6 +32,8 @@ interface MapPreviewProps {
   showSafeZone?: boolean;
   showTextOverlay?: boolean;
   onToggleSafeZone?: () => void;
+  isRendering?: boolean;
+  onRenderComplete?: () => void;
 }
 
 // Crosshair overlay component for manual adjustment mode
@@ -74,6 +77,8 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
   showSafeZone = false,
   showTextOverlay = true,
   onToggleSafeZone,
+  isRendering = false,
+  onRenderComplete,
 }, ref) {
   const previewContainer = useRef<HTMLDivElement>(null);
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -484,6 +489,13 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
 
         {/* Safe zone overlay - fixed portrait */}
         <SafeZoneOverlay visible={showSafeZone} />
+
+        {/* High-resolution rendering overlay */}
+        <RenderingOverlay
+          isRendering={isRendering}
+          duration={2000}
+          onComplete={onRenderComplete}
+        />
       </div>
 
       {/* Controls below the map */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
 import themes from "@/data/themes.json";
 import type { Theme } from "@/lib/mapbox/applyTheme";
@@ -76,6 +76,23 @@ export default function Home() {
   // Map preview ref for capturing thumbnails
   const mapPreviewRef = useRef<MapPreviewHandle>(null);
 
+  // Rendering overlay state
+  const [isRendering, setIsRendering] = useState(false);
+  const renderingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Trigger rendering overlay with cleanup
+  const triggerRenderingOverlay = useCallback(() => {
+    // Clear any existing timeout
+    if (renderingTimeoutRef.current) {
+      clearTimeout(renderingTimeoutRef.current);
+    }
+    setIsRendering(true);
+  }, []);
+
+  const handleRenderComplete = useCallback(() => {
+    setIsRendering(false);
+  }, []);
+
   // Navigation handlers
   const goToStep = (step: number) => {
     setCurrentStep(step);
@@ -86,6 +103,25 @@ export default function Home() {
       setCompletedSteps([...completedSteps, step]);
     }
   };
+
+  // Handle location selection with rendering overlay
+  const handleLocationSelect = useCallback((location: LocationData | null) => {
+    setSelectedLocation(location);
+    if (location) {
+      // Trigger rendering overlay after a short delay for fly-to animation
+      setTimeout(() => {
+        triggerRenderingOverlay();
+      }, 500);
+    }
+  }, [triggerRenderingOverlay]);
+
+  // Handle theme selection with rendering overlay
+  const handleThemeSelect = useCallback((theme: Theme | null) => {
+    setSelectedTheme(theme);
+    if (theme && selectedLocation) {
+      triggerRenderingOverlay();
+    }
+  }, [triggerRenderingOverlay, selectedLocation]);
 
   // Step completion handlers
   const handleCityNext = () => {
@@ -122,6 +158,12 @@ export default function Home() {
 
   const handleAddToCart = async () => {
     if (!selectedLocation || !selectedTheme) return;
+
+    // Trigger rendering overlay for final high-res snap
+    triggerRenderingOverlay();
+
+    // Wait for rendering overlay to complete before capturing
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // Capture map thumbnail (now async with html2canvas)
     const thumbnail = await mapPreviewRef.current?.captureImage() ?? undefined;
@@ -276,7 +318,7 @@ export default function Home() {
                   {currentStep === 1 && (
                     <StepCity
                       selectedLocation={selectedLocation}
-                      onLocationSelect={setSelectedLocation}
+                      onLocationSelect={handleLocationSelect}
                       onNext={handleCityNext}
                     />
                   )}
@@ -286,7 +328,7 @@ export default function Home() {
                       selectedMood={selectedMood}
                       selectedTheme={selectedTheme}
                       onMoodSelect={setSelectedMood}
-                      onThemeSelect={setSelectedTheme}
+                      onThemeSelect={handleThemeSelect}
                       onNext={handleVibeNext}
                       onBack={() => setCurrentStep(1)}
                     />
@@ -342,6 +384,8 @@ export default function Home() {
                         detailLineType={detailLineType}
                         showSafeZone={showSafeZone}
                         onToggleSafeZone={() => setShowSafeZone(!showSafeZone)}
+                        isRendering={isRendering}
+                        onRenderComplete={handleRenderComplete}
                       />
                     ) : (
                       <div className="aspect-[3/4] w-full rounded-lg bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">

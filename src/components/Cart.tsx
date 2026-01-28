@@ -2,7 +2,6 @@
 
 import type { Theme } from "@/lib/mapbox/applyTheme";
 import type { DetailLineType } from "./builder/StepDetails";
-import type { Orientation } from "./MapPreview";
 
 export interface CartItem {
   id: string;
@@ -14,7 +13,6 @@ export interface CartItem {
   focusAddress?: string;
   lat: number;
   lng: number;
-  orientation: Orientation;
   personalNote?: string;
   price: number;
   thumbnail?: string; // Base64 data URL of map preview
@@ -106,12 +104,10 @@ export default function Cart({
                 key={item.id}
                 className="flex gap-4 p-4 bg-neutral-50 dark:bg-neutral-900 rounded-xl"
               >
-                {/* Map thumbnail or color preview */}
+                {/* Map thumbnail - fixed portrait aspect ratio */}
                 <button
                   onClick={() => onReviewItem?.(item)}
-                  className={`rounded-lg flex-shrink-0 overflow-hidden hover:ring-2 hover:ring-neutral-400 transition-all cursor-pointer ${
-                    item.orientation === "landscape" ? "w-20 h-16" : "w-16 h-20"
-                  }`}
+                  className="w-16 h-20 rounded-lg flex-shrink-0 overflow-hidden hover:ring-2 hover:ring-neutral-400 transition-all cursor-pointer"
                   title="Click to review"
                 >
                   {item.thumbnail ? (
@@ -144,7 +140,7 @@ export default function Cart({
                     {item.stateName}
                   </p>
                   <p className="text-xs text-neutral-400 mt-1">
-                    {item.theme.name} • {item.orientation === "landscape" ? "24\" × 18\"" : "18\" × 24\""} Canvas
+                    {item.theme.name} • 18&quot; × 24&quot; Portrait Canvas
                   </p>
                   <p className="text-sm font-medium text-neutral-900 dark:text-white mt-2">
                     ${item.price.toFixed(2)}
@@ -193,7 +189,7 @@ export default function Cart({
               Checkout
             </button>
             <p className="text-xs text-center text-neutral-400">
-              Shipping calculated at checkout
+              Free shipping included
             </p>
           </div>
         )}

@@ -19,7 +19,6 @@ interface FocusPoint {
 }
 
 type DetailLineType = "coordinates" | "address" | "none";
-export type Orientation = "portrait" | "landscape";
 
 interface MapPreviewProps {
   theme: Theme;
@@ -31,16 +30,13 @@ interface MapPreviewProps {
   detailLineType?: DetailLineType;
   showSafeZone?: boolean;
   showTextOverlay?: boolean;
-  orientation?: Orientation;
   onToggleSafeZone?: () => void;
 }
 
-// Safe zone constants for portrait (18"x24")
-const SAFE_ZONE_VERTICAL_PERCENT_PORTRAIT = (1.5 / 24) * 100; // 6.25%
-const SAFE_ZONE_HORIZONTAL_PERCENT_PORTRAIT = (1.5 / 18) * 100; // 8.33%
-// Safe zone constants for landscape (24"x18")
-const SAFE_ZONE_VERTICAL_PERCENT_LANDSCAPE = (1.5 / 18) * 100; // 8.33%
-const SAFE_ZONE_HORIZONTAL_PERCENT_LANDSCAPE = (1.5 / 24) * 100; // 6.25%
+// Safe zone constants for portrait (18"x24") - 1.5" border for gallery wrap
+// Final render: 5400px × 7200px at 300 DPI
+const SAFE_ZONE_VERTICAL_PERCENT = (1.5 / 24) * 100; // 6.25%
+const SAFE_ZONE_HORIZONTAL_PERCENT = (1.5 / 18) * 100; // 8.33%
 
 const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPreview({
   theme,
@@ -52,16 +48,8 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
   detailLineType = "coordinates",
   showSafeZone = false,
   showTextOverlay = true,
-  orientation = "portrait",
   onToggleSafeZone,
 }, ref) {
-  // Get safe zone percentages based on orientation
-  const SAFE_ZONE_VERTICAL_PERCENT = orientation === "portrait"
-    ? SAFE_ZONE_VERTICAL_PERCENT_PORTRAIT
-    : SAFE_ZONE_VERTICAL_PERCENT_LANDSCAPE;
-  const SAFE_ZONE_HORIZONTAL_PERCENT = orientation === "portrait"
-    ? SAFE_ZONE_HORIZONTAL_PERCENT_PORTRAIT
-    : SAFE_ZONE_HORIZONTAL_PERCENT_LANDSCAPE;
   const previewContainer = useRef<HTMLDivElement>(null);
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -148,7 +136,14 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
       interactive: true,
       attributionControl: false,
       preserveDrawingBuffer: true,
+      // Disable rotation/pitch for flat architectural view
+      pitchWithRotate: false,
+      dragRotate: false,
+      touchPitch: false,
     });
+
+    // Disable rotation controls
+    map.current.touchZoomRotate.disableRotation();
 
     map.current.on("load", () => {
       setIsLoading(false);
@@ -226,20 +221,8 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
     }
   }, [focusPoint, theme.colors.text, isLoading]);
 
-  // Handle orientation changes - resize map and recenter
-  useEffect(() => {
-    if (!map.current || isLoading) return;
-
-    // Trigger map resize after orientation change
-    setTimeout(() => {
-      map.current?.resize();
-      // Recenter to maintain focus
-      map.current?.setCenter(actualCenter);
-      map.current?.setZoom(zoom);
-    }, 100);
-  }, [orientation, isLoading]);
-
   // Capture the full preview including text overlay using html2canvas
+  // Final output: 5400px × 7200px at 300 DPI for portrait canvas
   const captureImage = useCallback(async (): Promise<string | null> => {
     if (!previewContainer.current) return null;
     try {
@@ -266,15 +249,12 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
     captureImage,
   }), [captureImage]);
 
-  // Calculate aspect ratio based on orientation
-  const aspectRatio = orientation === "portrait" ? "aspect-[3/4]" : "aspect-[4/3]";
-
   return (
     <div className="relative w-full">
-      {/* Map container with dynamic aspect ratio based on orientation */}
+      {/* Map container - fixed portrait 3:4 aspect ratio (18" × 24") */}
       <div
         ref={previewContainer}
-        className={`${aspectRatio} w-full relative rounded-lg overflow-hidden`}
+        className="aspect-[3/4] w-full relative rounded-lg overflow-hidden"
         style={{
           backgroundColor: theme.colors.bg,
           border: `1px solid ${theme.colors.road_default}20`,
@@ -430,8 +410,8 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
           </div>
         )}
 
-        {/* Safe zone overlay */}
-        <SafeZoneOverlay visible={showSafeZone} orientation={orientation} />
+        {/* Safe zone overlay - fixed portrait */}
+        <SafeZoneOverlay visible={showSafeZone} />
       </div>
 
       {/* Safe zone toggle */}

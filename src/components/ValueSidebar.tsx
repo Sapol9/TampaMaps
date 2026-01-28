@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import type { Orientation } from "./MapPreview";
 
 interface ValueSidebarProps {
   price: number;
   onAddToCart: () => void;
   isComplete: boolean;
-  orientation?: Orientation;
   personalNote?: string;
   onPersonalNoteChange?: (note: string) => void;
 }
@@ -18,11 +16,9 @@ export default function ValueSidebar({
   price,
   onAddToCart,
   isComplete,
-  orientation = "portrait",
   personalNote = "",
   onPersonalNoteChange,
 }: ValueSidebarProps) {
-  const dimensions = orientation === "landscape" ? "24\" × 18\"" : "18\" × 24\"";
   const [showBackPreview, setShowBackPreview] = useState(false);
 
   const handleNoteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -47,7 +43,7 @@ export default function ValueSidebar({
         </div>
       </div>
 
-      {/* Product Specs */}
+      {/* Product Specs - Fixed Portrait */}
       <div className="space-y-3">
         <div className="flex items-center gap-3 text-sm">
           <svg
@@ -64,7 +60,7 @@ export default function ValueSidebar({
             />
           </svg>
           <span className="text-neutral-600 dark:text-neutral-400">
-            {dimensions} Archival Canvas
+            18&quot; × 24&quot; Portrait Canvas
           </span>
         </div>
         <div className="flex items-center gap-3 text-sm">
@@ -183,16 +179,12 @@ export default function ValueSidebar({
             </p>
           </div>
 
-          {/* Back of Canvas Preview */}
+          {/* Back of Canvas Preview - Fixed Portrait */}
           <div className="p-4 bg-neutral-100 dark:bg-neutral-800 rounded-xl">
             <p className="text-xs text-neutral-500 dark:text-neutral-400 text-center mb-3 font-medium">
               Live Preview
             </p>
-            <div
-              className={`${
-                orientation === "landscape" ? "aspect-[4/3]" : "aspect-[3/4]"
-              } bg-white dark:bg-neutral-700 rounded-lg border border-neutral-200 dark:border-neutral-600 p-4 flex flex-col`}
-            >
+            <div className="aspect-[3/4] bg-white dark:bg-neutral-700 rounded-lg border border-neutral-200 dark:border-neutral-600 p-4 flex flex-col">
               {/* MapMarked Logo */}
               <div className="text-center mb-3">
                 <span className="text-sm font-semibold text-neutral-900 dark:text-white tracking-wide">
@@ -219,7 +211,7 @@ export default function ValueSidebar({
               {/* Dimensions & Info */}
               <div className="text-center mt-3 pt-3 border-t border-neutral-200 dark:border-neutral-600">
                 <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
-                  {dimensions} • Gallery Wrap Canvas
+                  18&quot; × 24&quot; • Portrait Canvas
                 </p>
                 <p className="text-[10px] text-neutral-400 mt-1">
                   mapmarked.com

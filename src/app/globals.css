@@ -59,3 +59,16 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--foreground);
 }
+
+/* Ghost Attribution - Mapbox controls */
+.mapboxgl-ctrl-logo {
+  opacity: 0.3 !important;
+  filter: grayscale(100%);
+  bottom: 44px !important;
+  left: 44px !important;
+}
+
+.mapboxgl-ctrl-attrib-inner {
+  opacity: 0.3;
+  color: #ffffff;
+}

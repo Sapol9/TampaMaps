@@ -329,36 +329,65 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
     });
   }, []);
 
-  // Capture the full preview including text overlay using html2canvas
+  // Capture the full preview including text overlay
+  // Uses Mapbox's native canvas capture + html2canvas for text overlay compositing
   // Final output: 5400px × 7200px at 300 DPI for portrait canvas
   const captureImage = useCallback(async (): Promise<string | null> => {
-    if (!previewContainer.current) return null;
+    if (!previewContainer.current || !map.current) return null;
 
     // Wait for map to be fully rendered before capturing
     await waitForIdle();
 
     try {
-      const canvas = await html2canvas(previewContainer.current, {
+      // Get the container dimensions
+      const container = previewContainer.current;
+      const rect = container.getBoundingClientRect();
+      const scale = 2; // Higher quality capture
+      const width = rect.width * scale;
+      const height = rect.height * scale;
+
+      // Create a composite canvas
+      const compositeCanvas = document.createElement("canvas");
+      compositeCanvas.width = width;
+      compositeCanvas.height = height;
+      const ctx = compositeCanvas.getContext("2d");
+      if (!ctx) return null;
+
+      // Scale for high DPI
+      ctx.scale(scale, scale);
+
+      // 1. Draw the Mapbox canvas directly (WebGL capture)
+      const mapCanvas = map.current.getCanvas();
+      ctx.drawImage(mapCanvas, 0, 0, rect.width, rect.height);
+
+      // 2. Use html2canvas to capture ONLY the text overlay (not the map)
+      const overlayCanvas = await html2canvas(container, {
         useCORS: true,
         allowTaint: true,
-        backgroundColor: theme.colors.bg,
-        scale: 2, // Higher quality
+        backgroundColor: null, // Transparent background
+        scale: scale,
         logging: false,
-        // Ignore overlays that shouldn't be in the final capture
         ignoreElements: (element) => {
-          const classList = element.classList;
-          if (!classList) return false;
-          // Ignore safe zone overlay and rendering overlay
-          return classList.contains("safe-zone-overlay") ||
-                 classList.contains("rendering-overlay");
+          // Ignore the map container itself, safe zone, and rendering overlay
+          if (element === mapContainer.current) return true;
+          if (element.classList?.contains("mapboxgl-canvas-container")) return true;
+          if (element.classList?.contains("mapboxgl-canvas")) return true;
+          if (element.classList?.contains("safe-zone-overlay")) return true;
+          if (element.classList?.contains("rendering-overlay")) return true;
+          return false;
         },
       });
-      return canvas.toDataURL("image/jpeg", 0.9);
+
+      // 3. Composite the text overlay on top of the map
+      ctx.resetTransform(); // Reset scale for overlay
+      ctx.drawImage(overlayCanvas, 0, 0);
+
+      return compositeCanvas.toDataURL("image/jpeg", 0.9);
     } catch (err) {
       console.error("Failed to capture image:", err);
       return null;
     }
-  }, [theme.colors.bg, waitForIdle]);
+  }, [waitForIdle]);
 
   // Expose methods via ref
   useImperativeHandle(ref, () => ({
@@ -457,15 +486,8 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
             <div
               className="text-center py-2 sm:py-3"
               style={{
-                // Dynamic 4px halo with 0.2 blur matching theme background
-                textShadow: `
-                  0 0 4px ${theme.colors.bg},
-                  0 0 4px ${theme.colors.bg},
-                  0 0 4px ${theme.colors.bg},
-                  0 0 4px ${theme.colors.bg},
-                  0 1px 4px ${theme.colors.bg}80
-                `.trim().replace(/\s+/g, ' '),
-                filter: "blur(0.2px)",
+                // Hard-edge vector halo: 4 stacked shadows with 0 blur for crisp gap
+                textShadow: `0 0 4px ${theme.colors.bg}, 0 0 4px ${theme.colors.bg}, 0 0 4px ${theme.colors.bg}, 0 0 4px ${theme.colors.bg}`,
               }}
             >
               {/* City Name - Space Grotesk with 0.1em letter spacing */}

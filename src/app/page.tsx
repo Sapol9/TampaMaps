@@ -13,6 +13,7 @@ import StepFocus, { type FocusPoint } from "@/components/builder/StepFocus";
 import StepBranding from "@/components/builder/StepBranding";
 import StepDetails, { type DetailLineType } from "@/components/builder/StepDetails";
 import StepInscription from "@/components/builder/StepInscription";
+import StepPreview from "@/components/builder/StepPreview";
 import { type MapPreviewHandle } from "@/components/MapPreview";
 import Cart, { type CartItem } from "@/components/Cart";
 
@@ -44,9 +45,13 @@ export default function Home() {
   // Hero state
   const [showBuilder, setShowBuilder] = useState(false);
 
-  // Builder step state (now 6 steps)
+  // Builder step state (7 steps total)
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+
+  // Step 7: Final preview state
+  const [previewThumbnail, setPreviewThumbnail] = useState<string | null>(null);
+  const [isCapturingForPreview, setIsCapturingForPreview] = useState(false);
 
   // Step 1: City selection
   const [selectedLocation, setSelectedLocation] = useState<LocationData | null>(null);
@@ -157,9 +162,22 @@ export default function Home() {
     setCurrentStep(6);
   };
 
-  const handleComplete = () => {
+  const handleInscriptionNext = async () => {
     completeStep(6);
-    // Stay on step 6 but show completion state
+    // Capture thumbnail for the final preview step
+    setIsCapturingForPreview(true);
+    try {
+      await mapPreviewRef.current?.waitForIdle();
+      const thumbnail = await mapPreviewRef.current?.captureImage();
+      setPreviewThumbnail(thumbnail ?? null);
+    } finally {
+      setIsCapturingForPreview(false);
+    }
+    setCurrentStep(7);
+  };
+
+  const handlePreviewComplete = () => {
+    completeStep(7);
   };
 
   const handleAddToCart = async () => {
@@ -236,9 +254,11 @@ export default function Home() {
       setFocusPoint(null);
     }
     setPersonalNote(item.personalNote || "");
+    // Set the thumbnail from the cart item for the preview
+    setPreviewThumbnail(item.thumbnail ?? null);
     // Go to last step and close cart
-    setCurrentStep(6);
-    setCompletedSteps([1, 2, 3, 4, 5, 6]);
+    setCurrentStep(7);
+    setCompletedSteps([1, 2, 3, 4, 5, 6, 7]);
     setIsCartOpen(false);
     setShowBuilder(true);
   };
@@ -258,7 +278,7 @@ export default function Home() {
   // Show map as soon as city is selected, using default theme if none selected yet
   const showMapPreview = selectedLocation;
   const previewTheme = selectedTheme || defaultTheme;
-  const isDesignComplete = completedSteps.includes(6);
+  const isDesignComplete = completedSteps.includes(7);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -315,7 +335,7 @@ export default function Home() {
                   Design Your <span className="font-semibold">Masterpiece</span>
                 </h2>
                 <p className="text-neutral-600 dark:text-neutral-400 mt-2">
-                  6 simple steps to create your custom architectural map art
+                  7 simple steps to create your custom architectural map art
                 </p>
               </div>
 
@@ -387,8 +407,24 @@ export default function Home() {
                     <StepInscription
                       personalNote={personalNote}
                       onPersonalNoteChange={setPersonalNote}
-                      onComplete={handleComplete}
+                      onComplete={handleInscriptionNext}
                       onBack={() => setCurrentStep(5)}
+                    />
+                  )}
+
+                  {currentStep === 7 && selectedLocation && selectedTheme && (
+                    <StepPreview
+                      mapThumbnail={previewThumbnail}
+                      theme={selectedTheme}
+                      cityName={primaryText || selectedLocation.name}
+                      stateName={selectedLocation.state || selectedLocation.country || ""}
+                      personalNote={personalNote}
+                      onAddToCart={async () => {
+                        handlePreviewComplete();
+                        await handleAddToCart();
+                      }}
+                      onBack={() => setCurrentStep(6)}
+                      isCapturing={isCapturingForPreview}
                     />
                   )}
                 </div>

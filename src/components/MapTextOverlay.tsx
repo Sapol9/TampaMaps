@@ -45,22 +45,30 @@ export default function MapTextOverlay({
         // Respect horizontal safe zones
         paddingLeft: `${SAFE_ZONE_HORIZONTAL_PERCENT}%`,
         paddingRight: `${SAFE_ZONE_HORIZONTAL_PERCENT}%`,
-        backgroundColor: bgColor,
+        // Background removed to let map show through
       }}
     >
       <div className="text-center py-4 sm:py-6">
-        {/* City Name - Large, spaced letters */}
+        {/* City Name - Large, spaced letters with halo */}
         <h2
           className="text-lg sm:text-xl md:text-2xl font-light tracking-[0.4em] mb-1"
-          style={{ color: textColor }}
+          style={{
+            color: textColor,
+            // 5px halo prevents text from blending into street lines
+            textShadow: `0 0 5px ${bgColor}, 0 0 5px ${bgColor}`,
+          }}
         >
           {spacedCityName}
         </h2>
 
-        {/* Coordinates */}
+        {/* Coordinates with subtle halo */}
         <p
           className="text-xs sm:text-sm font-light tracking-widest"
-          style={{ color: textColor, opacity: 0.7 }}
+          style={{
+            color: textColor,
+            opacity: 0.7,
+            textShadow: `0 0 4px ${bgColor}`,
+          }}
         >
           {formattedCoords}
         </p>

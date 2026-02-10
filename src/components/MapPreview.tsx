@@ -11,9 +11,12 @@ import SafeZoneOverlay from "./SafeZoneOverlay";
 import RenderingOverlay from "./RenderingOverlay";
 
 export interface MapPreviewHandle {
-  captureImage: () => Promise<string | null>;
+  captureImage: (debug?: boolean) => Promise<string | null>;
   waitForIdle: () => Promise<void>;
 }
+
+// Debug mode flag - set to true to enable print dimension logging and file download
+const DEBUG_PRINT_MODE = true;
 
 interface FocusPoint {
   lat: number;
@@ -341,9 +344,13 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
 
   // Capture the full preview including text overlay
   // Uses Mapbox's native canvas capture + html2canvas for text overlay compositing
-  // Final output: 5400px × 7200px at 300 DPI for portrait canvas
-  const captureImage = useCallback(async (): Promise<string | null> => {
+  // Final output: Fixed 5400px × 7200px at 300 DPI for 18"×24" portrait canvas
+  const captureImage = useCallback(async (debug: boolean = DEBUG_PRINT_MODE): Promise<string | null> => {
     if (!previewContainer.current || !map.current) return null;
+
+    // Fixed print dimensions (300 DPI for 18"×24")
+    const PRINT_WIDTH = 5400;
+    const PRINT_HEIGHT = 7200;
 
     // Trigger a render to ensure the map is fresh
     map.current.triggerRepaint();
@@ -355,33 +362,44 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
     await new Promise((resolve) => setTimeout(resolve, 200));
 
     try {
-      // Get the container dimensions
       const container = previewContainer.current;
       const rect = container.getBoundingClientRect();
-      const scale = 2; // Higher quality capture
-      const width = rect.width * scale;
-      const height = rect.height * scale;
 
-      // Create a composite canvas
+      if (debug) {
+        console.log("[MapPreview Debug] Viewport container size:", rect.width, "x", rect.height);
+        console.log("[MapPreview Debug] Target print size:", PRINT_WIDTH, "x", PRINT_HEIGHT);
+      }
+
+      // Calculate scale factor to reach print dimensions
+      const scaleX = PRINT_WIDTH / rect.width;
+      const scaleY = PRINT_HEIGHT / rect.height;
+
+      if (debug) {
+        console.log("[MapPreview Debug] Scale factors - X:", scaleX.toFixed(2), "Y:", scaleY.toFixed(2));
+      }
+
+      // Create fixed-size composite canvas at print resolution
       const compositeCanvas = document.createElement("canvas");
-      compositeCanvas.width = width;
-      compositeCanvas.height = height;
+      compositeCanvas.width = PRINT_WIDTH;
+      compositeCanvas.height = PRINT_HEIGHT;
       const ctx = compositeCanvas.getContext("2d");
       if (!ctx) return null;
 
-      // Scale for high DPI
-      ctx.scale(scale, scale);
-
-      // 1. Draw the Mapbox canvas directly (WebGL capture)
+      // 1. Draw the Mapbox canvas scaled to print dimensions
       const mapCanvas = map.current.getCanvas();
-      ctx.drawImage(mapCanvas, 0, 0, rect.width, rect.height);
 
-      // 2. Use html2canvas to capture ONLY the text overlay (not the map)
+      if (debug) {
+        console.log("[MapPreview Debug] Mapbox canvas size:", mapCanvas.width, "x", mapCanvas.height);
+      }
+
+      ctx.drawImage(mapCanvas, 0, 0, PRINT_WIDTH, PRINT_HEIGHT);
+
+      // 2. Use html2canvas to capture the text overlay at high resolution
       const overlayCanvas = await html2canvas(container, {
         useCORS: true,
         allowTaint: true,
         backgroundColor: null, // Transparent background
-        scale: scale,
+        scale: Math.max(scaleX, scaleY), // Scale to match print resolution
         logging: false,
         ignoreElements: (element) => {
           // Ignore the map container itself, safe zone, and rendering overlay
@@ -394,11 +412,34 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
         },
       });
 
-      // 3. Composite the text overlay on top of the map
-      ctx.resetTransform(); // Reset scale for overlay
-      ctx.drawImage(overlayCanvas, 0, 0);
+      if (debug) {
+        console.log("[MapPreview Debug] Overlay canvas size:", overlayCanvas.width, "x", overlayCanvas.height);
+      }
 
-      return compositeCanvas.toDataURL("image/jpeg", 0.9);
+      // 3. Composite the text overlay on top of the map, scaled to print size
+      ctx.drawImage(overlayCanvas, 0, 0, PRINT_WIDTH, PRINT_HEIGHT);
+
+      // Log final output dimensions
+      if (debug) {
+        console.log("[MapPreview Debug] ✅ Final output dimensions:", compositeCanvas.width, "x", compositeCanvas.height);
+        console.log("[MapPreview Debug] Expected: 5400 x 7200");
+        console.log("[MapPreview Debug] Match:", compositeCanvas.width === 5400 && compositeCanvas.height === 7200 ? "✅ YES" : "❌ NO");
+      }
+
+      const dataUrl = compositeCanvas.toDataURL("image/jpeg", 0.95);
+
+      // In debug mode, trigger download of the print-ready image
+      if (debug) {
+        const link = document.createElement("a");
+        link.download = `mapmarked-print-${Date.now()}.jpg`;
+        link.href = dataUrl;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        console.log("[MapPreview Debug] 📥 Print-ready image downloaded:", link.download);
+      }
+
+      return dataUrl;
     } catch (err) {
       console.error("Failed to capture image:", err);
       return null;

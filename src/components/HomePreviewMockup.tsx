@@ -81,16 +81,16 @@ export default function HomePreviewMockup({
           />
 
           {/* Canvas Frame Container - Positioned over the wall canvas */}
-          {/* Based on the image analysis: canvas is roughly at top: 8%, left: 13%, width: 28%, height: 42% */}
+          {/* Based on the image analysis: canvas is at top: 6.5%, left: 12.5%, width: 27.5%, height: 45% */}
           <div
             className="absolute"
             style={{
-              top: "8%",
-              left: "13%",
-              width: "28%",
-              height: "42%",
-              // Perspective transform to match the slight angle of the canvas on the wall
-              transform: "perspective(1200px) rotateY(-3deg) rotateX(1deg)",
+              top: "6.5%",
+              left: "12.5%",
+              width: "27.5%",
+              height: "45%",
+              // Perspective transform to match the slight angle of the canvas on the wall (right side closer)
+              transform: "perspective(1200px) rotateY(3deg) rotateX(-0.5deg)",
               transformOrigin: "center center",
             }}
           >

@@ -2,36 +2,32 @@
 
 import { useState, useEffect } from "react";
 import type { Theme } from "@/lib/mapbox/applyTheme";
-import BackOfCanvasPreview from "../BackOfCanvasPreview";
 
 interface StepPreviewProps {
   mapThumbnail: string | null;
   theme: Theme;
   cityName: string;
   stateName: string;
-  personalNote: string;
   onAddToCart: () => void;
   onBack: () => void;
   isCapturing?: boolean;
 }
 
 /**
- * StepPreview Component (Step 7) - Final Reveal
+ * StepPreview Component (Step 6) - Final Reveal
  *
  * Displays the user's completed design in a realistic room setting
- * with flip-to-back functionality and gallery wrap detail view.
+ * with gallery wrap detail view.
  */
 export default function StepPreview({
   mapThumbnail,
   theme,
   cityName,
   stateName,
-  personalNote,
   onAddToCart,
   onBack,
   isCapturing = false,
 }: StepPreviewProps) {
-  const [isFlipped, setIsFlipped] = useState(false);
   const [showGalleryZoom, setShowGalleryZoom] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasViewedPreview, setHasViewedPreview] = useState(false);
@@ -73,189 +69,150 @@ export default function StepPreview({
           isLoaded ? "opacity-100" : "opacity-0"
         }`}
       >
-        {/* Flip Container */}
-        <div
-          className="relative w-full"
-          style={{
-            perspective: "1500px",
-            transformStyle: "preserve-3d",
-          }}
-        >
-          <div
-            className={`relative w-full transition-transform duration-700 ease-in-out`}
-            style={{
-              transformStyle: "preserve-3d",
-              transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
-            }}
-          >
-            {/* Front: Room Preview */}
+        {/* Room Preview */}
+        <div className="relative w-full">
+          {/* Living Room Image */}
+          <div className="relative w-full aspect-[4/3] sm:aspect-[16/10]">
+            <img
+              src="/mockup-living-room.jpg"
+              alt="Living room mockup"
+              className="w-full h-full object-contain sm:object-cover"
+            />
+
+            {/* Canvas Frame Container - Positioned over the wall canvas */}
             <div
-              className="relative w-full"
+              className="absolute"
               style={{
-                backfaceVisibility: "hidden",
+                top: "6.5%",
+                left: "12.5%",
+                width: "27.5%",
+                height: "45%",
+                // Perspective transform to match room angle (right side closer to viewer)
+                transform: "perspective(1200px) rotateY(3deg) rotateX(-0.5deg)",
+                transformOrigin: "center center",
               }}
             >
-              {/* Living Room Image */}
-              <div className="relative w-full aspect-[4/3] sm:aspect-[16/10]">
-                <img
-                  src="/mockup-living-room.jpg"
-                  alt="Living room mockup"
-                  className="w-full h-full object-contain sm:object-cover"
-                />
+              {/* Canvas Shadow (depth effect) */}
+              <div
+                className="absolute inset-0 rounded-sm"
+                style={{
+                  boxShadow:
+                    "8px 12px 24px rgba(0,0,0,0.4), 2px 3px 8px rgba(0,0,0,0.3)",
+                  transform: "translateZ(-2px)",
+                }}
+              />
 
-                {/* Canvas Frame Container - Positioned over the wall canvas */}
-                <div
-                  className="absolute"
-                  style={{
-                    top: "8%",
-                    left: "13%",
-                    width: "28%",
-                    height: "42%",
-                    // Perspective transform to match room angle
-                    transform: "perspective(1000px) rotateY(-2deg)",
-                    transformOrigin: "center center",
-                  }}
-                >
-                  {/* Canvas Shadow (depth effect) */}
-                  <div
-                    className="absolute inset-0 rounded-sm"
-                    style={{
-                      boxShadow:
-                        "8px 12px 24px rgba(0,0,0,0.4), 2px 3px 8px rgba(0,0,0,0.3)",
-                      transform: "translateZ(-2px)",
-                    }}
+              {/* Canvas Container with Gallery Wrap Effect */}
+              <div
+                className="relative w-full h-full rounded-sm overflow-hidden"
+                style={{
+                  backgroundColor: theme.colors.bg,
+                  // 1.25" frame depth simulation
+                  boxShadow: `
+                    inset 0 0 0 2px ${theme.colors.bg},
+                    inset -4px 0 8px rgba(0,0,0,0.2),
+                    inset 0 -4px 8px rgba(0,0,0,0.15)
+                  `,
+                }}
+              >
+                {/* Map Image */}
+                {mapThumbnail ? (
+                  <img
+                    src={mapThumbnail}
+                    alt={`${cityName} map preview`}
+                    className="w-full h-full object-cover"
                   />
-
-                  {/* Canvas Container with Gallery Wrap Effect */}
+                ) : (
+                  /* Fallback */
                   <div
-                    className="relative w-full h-full rounded-sm overflow-hidden"
-                    style={{
-                      backgroundColor: theme.colors.bg,
-                      // 1.25" frame depth simulation
-                      boxShadow: `
-                        inset 0 0 0 2px ${theme.colors.bg},
-                        inset -4px 0 8px rgba(0,0,0,0.2),
-                        inset 0 -4px 8px rgba(0,0,0,0.15)
-                      `,
-                    }}
+                    className="w-full h-full flex flex-col items-center justify-end pb-[12%]"
+                    style={{ backgroundColor: theme.colors.bg }}
                   >
-                    {/* Map Image */}
-                    {mapThumbnail ? (
-                      <img
-                        src={mapThumbnail}
-                        alt={`${cityName} map preview`}
-                        className="w-full h-full object-cover"
-                        style={{
-                          // Multiply blend to inherit room lighting
-                          mixBlendMode: "multiply",
-                        }}
-                      />
-                    ) : (
-                      /* Fallback */
-                      <div
-                        className="w-full h-full flex flex-col items-center justify-end pb-[12%]"
-                        style={{ backgroundColor: theme.colors.bg }}
-                      >
-                        <svg
-                          className="absolute inset-0 w-full h-full"
-                          preserveAspectRatio="none"
-                        >
-                          <line
-                            x1="20%"
-                            y1="30%"
-                            x2="80%"
-                            y2="30%"
-                            stroke={theme.colors.road_motorway}
-                            strokeWidth="2"
-                            strokeOpacity={theme.colors.road_opacity ?? 0.8}
-                          />
-                          <line
-                            x1="50%"
-                            y1="10%"
-                            x2="50%"
-                            y2="70%"
-                            stroke={theme.colors.road_primary}
-                            strokeWidth="1.5"
-                            strokeOpacity={theme.colors.road_opacity ?? 0.8}
-                          />
-                        </svg>
-                        <div className="relative z-10 text-center px-4">
-                          <h3
-                            className="text-[2cqw] font-semibold tracking-[0.1em]"
-                            style={{ color: theme.colors.text }}
-                          >
-                            {spacedCityName}
-                          </h3>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Canvas Texture Overlay */}
                     <svg
-                      className="absolute inset-0 w-full h-full pointer-events-none"
-                      style={{ mixBlendMode: "overlay" }}
+                      className="absolute inset-0 w-full h-full"
+                      preserveAspectRatio="none"
                     >
-                      <defs>
-                        <filter
-                          id="canvasTexturePreview"
-                          x="0"
-                          y="0"
-                          width="100%"
-                          height="100%"
-                        >
-                          <feTurbulence
-                            type="fractalNoise"
-                            baseFrequency="0.9"
-                            numOctaves="4"
-                            seed="15"
-                            result="noise"
-                          />
-                          <feColorMatrix
-                            type="matrix"
-                            values="1 0 0 0 0
-                                    0 1 0 0 0
-                                    0 0 1 0 0
-                                    0 0 0 0.08 0"
-                          />
-                        </filter>
-                      </defs>
-                      <rect
-                        width="100%"
-                        height="100%"
-                        filter="url(#canvasTexturePreview)"
+                      <line
+                        x1="20%"
+                        y1="30%"
+                        x2="80%"
+                        y2="30%"
+                        stroke={theme.colors.road_motorway}
+                        strokeWidth="2"
+                        strokeOpacity={theme.colors.road_opacity ?? 0.8}
+                      />
+                      <line
+                        x1="50%"
+                        y1="10%"
+                        x2="50%"
+                        y2="70%"
+                        stroke={theme.colors.road_primary}
+                        strokeWidth="1.5"
+                        strokeOpacity={theme.colors.road_opacity ?? 0.8}
                       />
                     </svg>
-
-                    {/* Lighting Overlay */}
-                    <div
-                      className="absolute inset-0 pointer-events-none"
-                      style={{
-                        background: `
-                          linear-gradient(135deg,
-                            rgba(255,255,255,0.08) 0%,
-                            rgba(255,255,255,0.02) 30%,
-                            rgba(0,0,0,0.04) 70%,
-                            rgba(0,0,0,0.1) 100%
-                          )
-                        `,
-                        mixBlendMode: "overlay",
-                      }}
-                    />
+                    <div className="relative z-10 text-center px-4">
+                      <h3
+                        className="text-[2cqw] font-semibold tracking-[0.1em]"
+                        style={{ color: theme.colors.text }}
+                      >
+                        {spacedCityName}
+                      </h3>
+                    </div>
                   </div>
-                </div>
-              </div>
-            </div>
+                )}
 
-            {/* Back: Inscription Preview */}
-            <div
-              className="absolute inset-0 w-full"
-              style={{
-                backfaceVisibility: "hidden",
-                transform: "rotateY(180deg)",
-              }}
-            >
-              <div className="w-full aspect-[4/3] sm:aspect-[16/10] bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center p-4 sm:p-8">
-                <BackOfCanvasPreview personalNote={personalNote} />
+                {/* Canvas Texture Overlay */}
+                <svg
+                  className="absolute inset-0 w-full h-full pointer-events-none"
+                  style={{ mixBlendMode: "overlay" }}
+                >
+                  <defs>
+                    <filter
+                      id="canvasTexturePreview"
+                      x="0"
+                      y="0"
+                      width="100%"
+                      height="100%"
+                    >
+                      <feTurbulence
+                        type="fractalNoise"
+                        baseFrequency="0.9"
+                        numOctaves="4"
+                        seed="15"
+                        result="noise"
+                      />
+                      <feColorMatrix
+                        type="matrix"
+                        values="1 0 0 0 0
+                                0 1 0 0 0
+                                0 0 1 0 0
+                                0 0 0 0.08 0"
+                      />
+                    </filter>
+                  </defs>
+                  <rect
+                    width="100%"
+                    height="100%"
+                    filter="url(#canvasTexturePreview)"
+                  />
+                </svg>
+
+                {/* Lighting Overlay */}
+                <div
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    background: `
+                      linear-gradient(135deg,
+                        rgba(255,255,255,0.08) 0%,
+                        rgba(255,255,255,0.02) 30%,
+                        rgba(0,0,0,0.04) 70%,
+                        rgba(0,0,0,0.1) 100%
+                      )
+                    `,
+                    mixBlendMode: "overlay",
+                  }}
+                />
               </div>
             </div>
           </div>
@@ -266,7 +223,7 @@ export default function StepPreview({
           <div className="flex items-end justify-between text-white">
             <div>
               <p className="font-medium">{cityName}, {stateName}</p>
-              <p className="text-sm text-white/70">{theme.name} • 18" × 24" Gallery Canvas</p>
+              <p className="text-sm text-white/70">{theme.name} • 18&quot; × 24&quot; Gallery Canvas</p>
             </div>
             <p className="text-lg font-semibold">$94.00</p>
           </div>
@@ -275,27 +232,6 @@ export default function StepPreview({
 
       {/* Interactive Controls */}
       <div className="flex flex-wrap gap-3">
-        {/* Flip to Back Button */}
-        <button
-          onClick={() => setIsFlipped(!isFlipped)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors text-sm font-medium text-neutral-700 dark:text-neutral-300"
-        >
-          <svg
-            className={`w-4 h-4 transition-transform duration-300 ${isFlipped ? "rotate-180" : ""}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
-          </svg>
-          {isFlipped ? "View Front" : "View Inscription"}
-        </button>
-
         {/* Gallery Wrap Zoom Button */}
         <button
           onClick={() => setShowGalleryZoom(true)}
@@ -397,7 +333,7 @@ export default function StepPreview({
               <div className="absolute -left-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                 <div className="h-12 w-px bg-neutral-400" />
                 <span className="text-[10px] text-neutral-500 -rotate-90 whitespace-nowrap">
-                  1.25" depth
+                  1.25&quot; depth
                 </span>
               </div>
             </div>
@@ -407,7 +343,7 @@ export default function StepPreview({
                 <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                Premium 1.25" solid wood stretcher bars
+                Premium 1.25&quot; solid wood stretcher bars
               </p>
               <p className="flex items-center gap-2">
                 <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">

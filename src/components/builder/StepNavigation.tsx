@@ -12,8 +12,7 @@ const STEPS: Step[] = [
   { number: 3, title: "Define Your Focus", shortTitle: "Focus" },
   { number: 4, title: "Primary Branding", shortTitle: "Title" },
   { number: 5, title: "Detail Line", shortTitle: "Details" },
-  { number: 6, title: "Inscription", shortTitle: "Note" },
-  { number: 7, title: "Final Preview", shortTitle: "Preview" },
+  { number: 6, title: "Final Preview", shortTitle: "Preview" },
 ];
 
 interface StepNavigationProps {

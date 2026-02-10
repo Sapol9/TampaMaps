@@ -12,7 +12,6 @@ import StepVibe from "@/components/builder/StepVibe";
 import StepFocus, { type FocusPoint } from "@/components/builder/StepFocus";
 import StepBranding from "@/components/builder/StepBranding";
 import StepDetails, { type DetailLineType } from "@/components/builder/StepDetails";
-import StepInscription from "@/components/builder/StepInscription";
 import StepPreview from "@/components/builder/StepPreview";
 import { type MapPreviewHandle } from "@/components/MapPreview";
 import Cart, { type CartItem } from "@/components/Cart";
@@ -45,11 +44,11 @@ export default function Home() {
   // Hero state
   const [showBuilder, setShowBuilder] = useState(false);
 
-  // Builder step state (7 steps total)
+  // Builder step state (6 steps total)
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
 
-  // Step 7: Final preview state
+  // Step 6: Final preview state
   const [previewThumbnail, setPreviewThumbnail] = useState<string | null>(null);
   const [isCapturingForPreview, setIsCapturingForPreview] = useState(false);
 
@@ -68,9 +67,6 @@ export default function Home() {
 
   // Step 5: Detail line
   const [detailLineType, setDetailLineType] = useState<DetailLineType>("coordinates");
-
-  // Step 6: Personal note for back of canvas (Inscription)
-  const [personalNote, setPersonalNote] = useState("");
 
   // Map preview state
   const [showSafeZone, setShowSafeZone] = useState(true);
@@ -102,6 +98,8 @@ export default function Home() {
   // Navigation handlers
   const goToStep = (step: number) => {
     setCurrentStep(step);
+    // Scroll to top when navigating steps
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const completeStep = (step: number) => {
@@ -129,12 +127,18 @@ export default function Home() {
     }
   }, [triggerRenderingOverlay, selectedLocation]);
 
+  // Scroll to top helper
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   // Step completion handlers
   const handleCityNext = () => {
     if (selectedLocation) {
       setPrimaryText(selectedLocation.name);
       completeStep(1);
       setCurrentStep(2);
+      scrollToTop();
     }
   };
 
@@ -142,42 +146,43 @@ export default function Home() {
     if (selectedTheme) {
       completeStep(2);
       setCurrentStep(3);
+      scrollToTop();
     }
   };
 
   const handleFocusNext = () => {
     completeStep(3);
     setCurrentStep(4);
+    scrollToTop();
   };
 
   const handleBrandingNext = () => {
     if (primaryText.trim()) {
       completeStep(4);
       setCurrentStep(5);
+      scrollToTop();
     }
   };
 
-  const handleDetailsNext = () => {
+  const handleDetailsNext = async () => {
     completeStep(5);
-    setCurrentStep(6);
-  };
-
-  const handleInscriptionNext = async () => {
-    completeStep(6);
+    scrollToTop();
     // Capture thumbnail for the final preview step
     setIsCapturingForPreview(true);
     try {
       await mapPreviewRef.current?.waitForIdle();
+      // Additional delay to ensure all tiles are rendered
+      await new Promise((resolve) => setTimeout(resolve, 500));
       const thumbnail = await mapPreviewRef.current?.captureImage();
       setPreviewThumbnail(thumbnail ?? null);
     } finally {
       setIsCapturingForPreview(false);
     }
-    setCurrentStep(7);
+    setCurrentStep(6);
   };
 
   const handlePreviewComplete = () => {
-    completeStep(7);
+    completeStep(6);
   };
 
   const handleAddToCart = async () => {
@@ -211,7 +216,6 @@ export default function Home() {
       focusAddress: focusPoint?.address,
       lat: focusPoint?.lat ?? selectedLocation.lat,
       lng: focusPoint?.lng ?? selectedLocation.lng,
-      personalNote: personalNote || undefined,
       price: 94.0,
       thumbnail,
     };
@@ -224,9 +228,41 @@ export default function Home() {
     setCartItems((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const handleCheckout = () => {
-    // TODO: Implement checkout with Stripe or similar
-    alert("Checkout functionality coming soon!");
+  const handleCheckout = async () => {
+    if (cartItems.length === 0) return;
+
+    const item = cartItems[0]; // For now, checkout the first item
+
+    try {
+      const response = await fetch("/api/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          cityName: item.cityName,
+          stateName: item.stateName,
+          themeName: item.theme.name,
+          mapThumbnail: item.thumbnail,
+        }),
+      });
+
+      const { url, error } = await response.json();
+
+      if (error) {
+        console.error("Checkout error:", error);
+        alert("Failed to start checkout. Please try again.");
+        return;
+      }
+
+      // Redirect to Stripe Checkout
+      if (url) {
+        window.location.href = url;
+      }
+    } catch (err) {
+      console.error("Checkout error:", err);
+      alert("Failed to start checkout. Please try again.");
+    }
   };
 
   const handleReviewItem = (item: CartItem) => {
@@ -253,12 +289,11 @@ export default function Home() {
     } else {
       setFocusPoint(null);
     }
-    setPersonalNote(item.personalNote || "");
     // Set the thumbnail from the cart item for the preview
     setPreviewThumbnail(item.thumbnail ?? null);
     // Go to last step and close cart
-    setCurrentStep(7);
-    setCompletedSteps([1, 2, 3, 4, 5, 6, 7]);
+    setCurrentStep(6);
+    setCompletedSteps([1, 2, 3, 4, 5, 6]);
     setIsCartOpen(false);
     setShowBuilder(true);
   };
@@ -278,7 +313,7 @@ export default function Home() {
   // Show map as soon as city is selected, using default theme if none selected yet
   const showMapPreview = selectedLocation;
   const previewTheme = selectedTheme || defaultTheme;
-  const isDesignComplete = completedSteps.includes(7);
+  const isDesignComplete = completedSteps.includes(6);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -335,7 +370,7 @@ export default function Home() {
                   Design Your <span className="font-semibold">Masterpiece</span>
                 </h2>
                 <p className="text-neutral-600 dark:text-neutral-400 mt-2">
-                  7 simple steps to create your custom architectural map art
+                  6 simple steps to create your custom architectural map art
                 </p>
               </div>
 
@@ -403,27 +438,17 @@ export default function Home() {
                     />
                   )}
 
-                  {currentStep === 6 && (
-                    <StepInscription
-                      personalNote={personalNote}
-                      onPersonalNoteChange={setPersonalNote}
-                      onComplete={handleInscriptionNext}
-                      onBack={() => setCurrentStep(5)}
-                    />
-                  )}
-
-                  {currentStep === 7 && selectedLocation && selectedTheme && (
+                  {currentStep === 6 && selectedLocation && selectedTheme && (
                     <StepPreview
                       mapThumbnail={previewThumbnail}
                       theme={selectedTheme}
                       cityName={primaryText || selectedLocation.name}
                       stateName={selectedLocation.state || selectedLocation.country || ""}
-                      personalNote={personalNote}
                       onAddToCart={async () => {
                         handlePreviewComplete();
                         await handleAddToCart();
                       }}
-                      onBack={() => setCurrentStep(6)}
+                      onBack={() => setCurrentStep(5)}
                       isCapturing={isCapturingForPreview}
                     />
                   )}
@@ -481,7 +506,6 @@ export default function Home() {
                       price={94.0}
                       onAddToCart={handleAddToCart}
                       isComplete={isDesignComplete}
-                      personalNote={personalNote}
                     />
                   </div>
                 </div>

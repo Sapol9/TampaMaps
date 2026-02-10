@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState, useImperativeHandle, forwardRef, useCallback } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
+import "@/styles/mapbox-hardening.css";
 import html2canvas from "html2canvas";
 import { createCustomStyle } from "@/lib/mapbox/createStyle";
 import type { Theme } from "@/lib/mapbox/applyTheme";
 import SafeZoneOverlay from "./SafeZoneOverlay";
 import RenderingOverlay from "./RenderingOverlay";
-import HomePreviewMockup from "./HomePreviewMockup";
 
 export interface MapPreviewHandle {
   captureImage: () => Promise<string | null>;
@@ -90,8 +90,6 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
   const [error, setError] = useState<string | null>(null);
   const [isManualMode, setIsManualMode] = useState(false);
   const [hasMovedInManualMode, setHasMovedInManualMode] = useState(false);
-  const [showHomePreview, setShowHomePreview] = useState(false);
-  const [previewThumbnail, setPreviewThumbnail] = useState<string | null>(null);
   const currentThemeRef = useRef<string>(theme.id);
   const lockedCenter = useRef<[number, number]>(center);
 
@@ -191,7 +189,8 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
       zoom: zoom,
       // Start with interactivity disabled (locked mode by default)
       interactive: false,
-      attributionControl: false,
+      attributionControl: false, // We render custom attribution for better control
+      logoPosition: "bottom-right",
       preserveDrawingBuffer: true,
       // Disable rotation/pitch for flat architectural view
       pitchWithRotate: false,
@@ -306,17 +305,28 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
         return;
       }
 
+      const checkAndResolve = () => {
+        // Add a longer delay to ensure WebGL has finished rendering all tiles
+        setTimeout(resolve, 300);
+      };
+
       // Check if already idle
       if (!map.current.isMoving() && !map.current.isZooming() && map.current.loaded() && map.current.areTilesLoaded()) {
-        // Add a small delay to ensure WebGL has finished rendering
-        setTimeout(resolve, 100);
+        checkAndResolve();
         return;
       }
 
       // Wait for idle event
       const handleIdle = () => {
-        // Additional delay to ensure all rendering is complete
-        setTimeout(resolve, 100);
+        // Double-check tiles are loaded after idle fires
+        if (map.current?.areTilesLoaded()) {
+          checkAndResolve();
+        } else {
+          // If tiles aren't loaded yet, wait a bit more
+          setTimeout(() => {
+            map.current?.once("idle", handleIdle);
+          }, 200);
+        }
       };
 
       map.current.once("idle", handleIdle);
@@ -325,7 +335,7 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
       setTimeout(() => {
         map.current?.off("idle", handleIdle);
         resolve();
-      }, 3000);
+      }, 5000);
     });
   }, []);
 
@@ -335,8 +345,14 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
   const captureImage = useCallback(async (): Promise<string | null> => {
     if (!previewContainer.current || !map.current) return null;
 
+    // Trigger a render to ensure the map is fresh
+    map.current.triggerRepaint();
+
     // Wait for map to be fully rendered before capturing
     await waitForIdle();
+
+    // Extra delay for WebGL buffer to be ready
+    await new Promise((resolve) => setTimeout(resolve, 200));
 
     try {
       // Get the container dimensions
@@ -554,27 +570,57 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
           </div>
         )}
 
-        {/* Mapbox attribution - required for ToS, positioned bottom-right inside safe zone */}
+        {/* Mapbox attribution - Ghost Signature at safe zone edge */}
         {!isLoading && !error && (
           <div
-            className="absolute z-20 pointer-events-none"
+            className="absolute z-50 pointer-events-none flex flex-col items-end gap-1"
             style={{
-              // Position 1.75" from edges (7.29% on 24" height, 9.72% on 18" width)
-              bottom: `${(1.75 / 24) * 100}%`,
-              right: `${(1.75 / 18) * 100}%`,
+              // Position at safe zone edge: 6.25% from bottom, 8.33% from right
+              bottom: `${SAFE_ZONE_VERTICAL_PERCENT}%`,
+              right: `${SAFE_ZONE_HORIZONTAL_PERCENT}%`,
             }}
           >
-            <span
-              className="text-[5px] font-light"
+            {/* Mapbox logo - 85px width */}
+            <svg
+              width="85"
+              height="22"
+              viewBox="0 0 85 22"
+              aria-label="Mapbox"
               style={{
-                color: theme.colors.text,
-                opacity: 0.3,
-                filter: "grayscale(100%)",
-                transform: "scale(0.8)",
-                transformOrigin: "bottom right",
+                opacity: 0.25,
+                filter: "grayscale(100%) brightness(1.2)",
               }}
             >
-              © Mapbox © OpenStreetMap
+              <path
+                d="M11 2C6.03 2 2 6.03 2 11s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"
+                fill={theme.colors.text}
+              />
+              <path
+                d="M11 6c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zm2.5 6.32l-4.17 1.67c-.28.11-.61-.05-.61-.35V8.36c0-.3.33-.46.61-.35l4.17 1.67c.37.15.37.49 0 .64z"
+                fill={theme.colors.text}
+              />
+              <text
+                x="24"
+                y="15"
+                fontSize="12"
+                fontFamily="var(--font-space-grotesk), Arial, sans-serif"
+                fontWeight="600"
+                fill={theme.colors.text}
+              >
+                mapbox
+              </text>
+            </svg>
+            {/* Attribution text - 8px */}
+            <span
+              style={{
+                fontSize: 8,
+                fontFamily: "var(--font-space-grotesk), sans-serif",
+                color: theme.colors.text,
+                letterSpacing: "0.02em",
+                opacity: 0.25,
+              }}
+            >
+              © OpenStreetMap
             </span>
           </div>
         )}
@@ -657,43 +703,7 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
           </button>
         )}
 
-        {/* View in Room button */}
-        <button
-          onClick={async () => {
-            // Capture current preview for the mockup
-            const thumbnail = await captureImage();
-            setPreviewThumbnail(thumbnail);
-            setShowHomePreview(true);
-          }}
-          disabled={isLoading || !!error}
-          className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-            />
-          </svg>
-          View in Room
-        </button>
       </div>
-
-      {/* Home Preview Mockup Modal */}
-      <HomePreviewMockup
-        mapThumbnail={previewThumbnail}
-        theme={theme}
-        cityName={cityName}
-        stateName={stateName}
-        isVisible={showHomePreview}
-        onClose={() => setShowHomePreview(false)}
-      />
     </div>
   );
 });

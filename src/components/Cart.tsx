@@ -13,7 +13,6 @@ export interface CartItem {
   focusAddress?: string;
   lat: number;
   lng: number;
-  personalNote?: string;
   price: number;
   thumbnail?: string; // Base64 data URL of map preview
 }

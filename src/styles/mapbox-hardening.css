@@ -1,0 +1,72 @@
+/* mapbox-hardening.css */
+/* Ghost Signature calibration for Mapbox attribution */
+/* Ensures branding is visible, compliant, and inside 1.5" Safe Zone for 18"x24" gallery wrap */
+
+/* Force Mapbox branding into the Print Safe Zone */
+.mapboxgl-ctrl-bottom-right {
+  /* 6.25% vertical offset for 24" height; 8.33% horizontal for 18" width */
+  bottom: 6.25% !important;
+  right: 8.33% !important;
+  display: flex !important;
+  flex-direction: column-reverse !important;
+  align-items: flex-end !important;
+  z-index: 50 !important; /* Ensures it stays above the map and text overlays */
+}
+
+/* Hide bottom-left controls (we only need bottom-right) */
+.mapboxgl-ctrl-bottom-left {
+  display: none !important;
+}
+
+/* Style the Logo as a "Ghost Signature" */
+.mapboxgl-ctrl-logo {
+  width: 85px !important;
+  height: auto !important;
+  opacity: 0.25 !important; /* Premium ghosting effect */
+  filter: grayscale(100%) brightness(1.2) !important;
+  margin-bottom: 2px !important;
+  display: block !important;
+}
+
+/* Style the Attribution Text (Trademark) */
+.mapboxgl-ctrl-attrib {
+  background: transparent !important;
+  font-size: 8px !important;
+  font-family: var(--font-space-grotesk), sans-serif !important;
+  opacity: 0.25 !important;
+  color: inherit !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.mapboxgl-ctrl-attrib a {
+  color: inherit !important;
+  text-decoration: none !important;
+}
+
+/* Hide the interactive 'i' button for a cleaner print look */
+.mapboxgl-ctrl-attrib-button {
+  display: none !important;
+}
+
+/* Force attribution to always be expanded (not collapsed) */
+.mapboxgl-ctrl-attrib.mapboxgl-compact {
+  background: transparent !important;
+  padding: 0 !important;
+  min-height: auto !important;
+}
+
+.mapboxgl-ctrl-attrib.mapboxgl-compact::after {
+  display: none !important;
+}
+
+.mapboxgl-ctrl-attrib.mapboxgl-compact .mapboxgl-ctrl-attrib-inner {
+  display: block !important;
+}
+
+/* Remove default container styling */
+.mapboxgl-ctrl-bottom-right .mapboxgl-ctrl {
+  margin: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}

@@ -18,6 +18,7 @@ import Cart, { type CartItem } from "@/components/Cart";
 
 // New premium components
 import Hero from "@/components/Hero";
+import Gallery from "@/components/Gallery";
 import ProcessSteps from "@/components/ProcessSteps";
 import ProductSpecs from "@/components/ProductSpecs";
 import Features from "@/components/Features";
@@ -243,7 +244,7 @@ export default function Home() {
           cityName: item.cityName,
           stateName: item.stateName,
           themeName: item.theme.name,
-          mapThumbnail: item.thumbnail,
+          imageDataUrl: item.thumbnail, // Print-ready image for Printful
         }),
       });
 
@@ -319,13 +320,15 @@ export default function Home() {
     <div className="min-h-screen flex flex-col">
       {/* Header */}
       <header className="border-b border-neutral-200 dark:border-neutral-800 sticky top-0 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-md z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <a href="/" className="font-semibold text-neutral-900 dark:text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 relative flex items-center justify-center">
+          {/* Centered Logo */}
+          <a href="/" className="font-semibold text-neutral-900 dark:text-white text-lg tracking-wide">
             MapMarked
           </a>
+          {/* Cart Button - Absolute Right */}
           <button
             onClick={() => setIsCartOpen(true)}
-            className="relative p-2 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-lg transition-colors"
+            className="absolute right-4 sm:right-6 lg:right-8 p-2 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-lg transition-colors"
           >
             <svg
               className="w-5 h-5 text-neutral-600 dark:text-neutral-400"
@@ -354,6 +357,7 @@ export default function Home() {
         {!showBuilder && (
           <>
             <Hero onGetStarted={handleGetStarted} />
+            <Gallery />
             <ProductSpecs />
             <ProcessSteps />
             <Features />

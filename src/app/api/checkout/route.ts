@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { storePendingOrder } from "@/lib/orderStorage";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { cityName, stateName, themeName } = body;
+    const { cityName, stateName, themeName, imageDataUrl } = body;
 
     // Create Stripe Checkout session for $94 canvas print
     const session = await stripe.checkout.sessions.create({
@@ -58,6 +59,17 @@ export async function POST(request: NextRequest) {
         themeName,
       },
     });
+
+    // Store the image data for the webhook to use later
+    if (imageDataUrl && session.id) {
+      storePendingOrder(session.id, {
+        imageDataUrl,
+        cityName,
+        stateName,
+        themeName,
+        createdAt: Date.now(),
+      });
+    }
 
     return NextResponse.json({ sessionId: session.id, url: session.url });
   } catch (error) {

@@ -14,10 +14,150 @@ interface StepPreviewProps {
 }
 
 /**
- * StepPreview Component (Step 6) - Final Reveal
+ * CanvasMockup - 3D canvas visualization with gallery wrap depth
+ */
+function CanvasMockup({
+  imageSrc,
+  bgColor,
+}: {
+  imageSrc: string | null;
+  bgColor: string;
+}) {
+  const CANVAS_WIDTH = 270;
+  const CANVAS_HEIGHT = 360;
+  const CANVAS_DEPTH = 16;
+
+  return (
+    <div
+      className="relative mx-auto"
+      style={{
+        width: CANVAS_WIDTH,
+        height: CANVAS_HEIGHT,
+        perspective: "1200px",
+        perspectiveOrigin: "50% 50%",
+      }}
+    >
+      {/* 3D Canvas Container */}
+      <div
+        className="relative w-full h-full"
+        style={{
+          transformStyle: "preserve-3d",
+          transform: "rotateY(-8deg) rotateX(2deg)",
+        }}
+      >
+        {/* Main canvas face */}
+        <div
+          className="absolute inset-0 overflow-hidden"
+          style={{
+            transform: `translateZ(${CANVAS_DEPTH / 2}px)`,
+            boxShadow: `
+              6px 6px 20px rgba(0,0,0,0.25),
+              12px 12px 40px rgba(0,0,0,0.15),
+              -3px -3px 12px rgba(0,0,0,0.08)
+            `,
+          }}
+        >
+          {imageSrc ? (
+            <img
+              src={imageSrc}
+              alt="Canvas preview"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div
+              className="w-full h-full flex items-center justify-center"
+              style={{ backgroundColor: bgColor }}
+            >
+              <div className="w-8 h-8 border-2 border-neutral-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+        </div>
+
+        {/* Right edge (gallery wrap) */}
+        <div
+          className="absolute top-0 right-0 h-full overflow-hidden"
+          style={{
+            width: CANVAS_DEPTH,
+            transform: `rotateY(90deg) translateZ(${CANVAS_WIDTH - CANVAS_DEPTH / 2}px)`,
+            backgroundColor: "#1a1a1a",
+          }}
+        >
+          {imageSrc && (
+            <div
+              className="h-full"
+              style={{
+                width: CANVAS_WIDTH,
+                transform: `translateX(-${CANVAS_WIDTH - CANVAS_DEPTH}px)`,
+                filter: "brightness(0.55)",
+              }}
+            >
+              <img
+                src={imageSrc}
+                alt=""
+                className="w-full h-full object-cover"
+                style={{ objectPosition: "right center" }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Bottom edge (gallery wrap) */}
+        <div
+          className="absolute bottom-0 left-0 w-full overflow-hidden"
+          style={{
+            height: CANVAS_DEPTH,
+            transform: `rotateX(-90deg) translateZ(${CANVAS_HEIGHT - CANVAS_DEPTH / 2}px)`,
+            backgroundColor: "#1a1a1a",
+          }}
+        >
+          {imageSrc && (
+            <div
+              className="w-full"
+              style={{
+                height: CANVAS_HEIGHT,
+                transform: `translateY(-${CANVAS_HEIGHT - CANVAS_DEPTH}px)`,
+                filter: "brightness(0.45)",
+              }}
+            >
+              <img
+                src={imageSrc}
+                alt=""
+                className="w-full h-full object-cover"
+                style={{ objectPosition: "center bottom" }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Left edge shadow */}
+        <div
+          className="absolute top-0 left-0 h-full pointer-events-none"
+          style={{
+            width: 4,
+            transform: `translateZ(${CANVAS_DEPTH / 2}px)`,
+            background: "linear-gradient(to right, rgba(0,0,0,0.15), transparent)",
+          }}
+        />
+
+        {/* Top edge shadow */}
+        <div
+          className="absolute top-0 left-0 w-full pointer-events-none"
+          style={{
+            height: 4,
+            transform: `translateZ(${CANVAS_DEPTH / 2}px)`,
+            background: "linear-gradient(to bottom, rgba(0,0,0,0.12), transparent)",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * StepPreview Component (Step 6) - Final Review
  *
- * Displays the user's completed design in a realistic room setting
- * with gallery wrap detail view.
+ * Shows a 3D canvas mockup for fast, instant preview before checkout.
+ * Printful lifestyle mockups are generated after checkout for the confirmation page.
  */
 export default function StepPreview({
   mapThumbnail,
@@ -28,25 +168,12 @@ export default function StepPreview({
   onBack,
   isCapturing = false,
 }: StepPreviewProps) {
-  const [showGalleryZoom, setShowGalleryZoom] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(false);
   const [hasViewedPreview, setHasViewedPreview] = useState(false);
 
-  // Space out city name for poster aesthetic
-  const spacedCityName = cityName.toUpperCase().split("").join(" ");
-
-  // Mark preview as viewed after a short delay
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setHasViewedPreview(true);
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Handle image load
+  // Mark preview as viewed after thumbnail loads
   useEffect(() => {
     if (mapThumbnail) {
-      const timer = setTimeout(() => setIsLoaded(true), 100);
+      const timer = setTimeout(() => setHasViewedPreview(true), 800);
       return () => clearTimeout(timer);
     }
   }, [mapThumbnail]);
@@ -56,317 +183,61 @@ export default function StepPreview({
       {/* Step Header */}
       <div>
         <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-1">
-          Your Masterpiece
+          Review Your Design
         </h3>
         <p className="text-sm text-neutral-600 dark:text-neutral-400">
-          See how your custom map art will look in a real space
+          Your canvas with gallery wrap finish
         </p>
       </div>
 
-      {/* Room Preview Container */}
-      <div
-        className={`relative w-full rounded-xl overflow-hidden shadow-lg transition-all duration-700 ${
-          isLoaded ? "opacity-100" : "opacity-0"
-        }`}
-      >
-        {/* Room Preview */}
-        <div className="relative w-full">
-          {/* Living Room Image */}
-          <div className="relative w-full aspect-[4/3] sm:aspect-[16/10]">
-            <img
-              src="/mockup-living-room.jpg"
-              alt="Living room mockup"
-              className="w-full h-full object-contain sm:object-cover"
-            />
+      {/* 3D Canvas Mockup */}
+      <div className="bg-gradient-to-br from-neutral-200 via-neutral-100 to-neutral-200 dark:from-neutral-800 dark:via-neutral-850 dark:to-neutral-900 rounded-xl p-8 border border-neutral-200 dark:border-neutral-700">
+        <CanvasMockup
+          imageSrc={mapThumbnail}
+          bgColor={theme.colors.bg}
+        />
 
-            {/* Canvas Frame Container - Positioned over the wall canvas */}
-            <div
-              className="absolute"
-              style={{
-                top: "6.5%",
-                left: "12.5%",
-                width: "27.5%",
-                height: "45%",
-                // Perspective transform to match room angle (right side closer to viewer)
-                transform: "perspective(1200px) rotateY(3deg) rotateX(-0.5deg)",
-                transformOrigin: "center center",
-              }}
-            >
-              {/* Canvas Shadow (depth effect) */}
-              <div
-                className="absolute inset-0 rounded-sm"
-                style={{
-                  boxShadow:
-                    "8px 12px 24px rgba(0,0,0,0.4), 2px 3px 8px rgba(0,0,0,0.3)",
-                  transform: "translateZ(-2px)",
-                }}
-              />
-
-              {/* Canvas Container with Gallery Wrap Effect */}
-              <div
-                className="relative w-full h-full rounded-sm overflow-hidden"
-                style={{
-                  backgroundColor: theme.colors.bg,
-                  // 1.25" frame depth simulation
-                  boxShadow: `
-                    inset 0 0 0 2px ${theme.colors.bg},
-                    inset -4px 0 8px rgba(0,0,0,0.2),
-                    inset 0 -4px 8px rgba(0,0,0,0.15)
-                  `,
-                }}
-              >
-                {/* Map Image */}
-                {mapThumbnail ? (
-                  <img
-                    src={mapThumbnail}
-                    alt={`${cityName} map preview`}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  /* Fallback */
-                  <div
-                    className="w-full h-full flex flex-col items-center justify-end pb-[12%]"
-                    style={{ backgroundColor: theme.colors.bg }}
-                  >
-                    <svg
-                      className="absolute inset-0 w-full h-full"
-                      preserveAspectRatio="none"
-                    >
-                      <line
-                        x1="20%"
-                        y1="30%"
-                        x2="80%"
-                        y2="30%"
-                        stroke={theme.colors.road_motorway}
-                        strokeWidth="2"
-                        strokeOpacity={theme.colors.road_opacity ?? 0.8}
-                      />
-                      <line
-                        x1="50%"
-                        y1="10%"
-                        x2="50%"
-                        y2="70%"
-                        stroke={theme.colors.road_primary}
-                        strokeWidth="1.5"
-                        strokeOpacity={theme.colors.road_opacity ?? 0.8}
-                      />
-                    </svg>
-                    <div className="relative z-10 text-center px-4">
-                      <h3
-                        className="text-[2cqw] font-semibold tracking-[0.1em]"
-                        style={{ color: theme.colors.text }}
-                      >
-                        {spacedCityName}
-                      </h3>
-                    </div>
-                  </div>
-                )}
-
-                {/* Canvas Texture Overlay */}
-                <svg
-                  className="absolute inset-0 w-full h-full pointer-events-none"
-                  style={{ mixBlendMode: "overlay" }}
-                >
-                  <defs>
-                    <filter
-                      id="canvasTexturePreview"
-                      x="0"
-                      y="0"
-                      width="100%"
-                      height="100%"
-                    >
-                      <feTurbulence
-                        type="fractalNoise"
-                        baseFrequency="0.9"
-                        numOctaves="4"
-                        seed="15"
-                        result="noise"
-                      />
-                      <feColorMatrix
-                        type="matrix"
-                        values="1 0 0 0 0
-                                0 1 0 0 0
-                                0 0 1 0 0
-                                0 0 0 0.08 0"
-                      />
-                    </filter>
-                  </defs>
-                  <rect
-                    width="100%"
-                    height="100%"
-                    filter="url(#canvasTexturePreview)"
-                  />
-                </svg>
-
-                {/* Lighting Overlay */}
-                <div
-                  className="absolute inset-0 pointer-events-none"
-                  style={{
-                    background: `
-                      linear-gradient(135deg,
-                        rgba(255,255,255,0.08) 0%,
-                        rgba(255,255,255,0.02) 30%,
-                        rgba(0,0,0,0.04) 70%,
-                        rgba(0,0,0,0.1) 100%
-                      )
-                    `,
-                    mixBlendMode: "overlay",
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Product Info Overlay */}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
-          <div className="flex items-end justify-between text-white">
-            <div>
-              <p className="font-medium">{cityName}, {stateName}</p>
-              <p className="text-sm text-white/70">{theme.name} • 18&quot; × 24&quot; Gallery Canvas</p>
-            </div>
-            <p className="text-lg font-semibold">$94.00</p>
-          </div>
+        {/* Product Details */}
+        <div className="text-center mt-6 space-y-1">
+          <p className="font-medium text-neutral-900 dark:text-white">
+            {cityName}, {stateName}
+          </p>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">
+            {theme.name} • 18&quot; × 24&quot; Gallery Canvas
+          </p>
+          <p className="text-lg font-semibold text-neutral-900 dark:text-white pt-2">
+            $94.00
+          </p>
         </div>
       </div>
 
-      {/* Interactive Controls */}
-      <div className="flex flex-wrap gap-3">
-        {/* Gallery Wrap Zoom Button */}
-        <button
-          onClick={() => setShowGalleryZoom(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors text-sm font-medium text-neutral-700 dark:text-neutral-300"
-        >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"
-            />
+      {/* Product Features */}
+      <div className="grid grid-cols-2 gap-3 text-xs text-neutral-600 dark:text-neutral-400">
+        <div className="flex items-center gap-2">
+          <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
-          Frame Detail
-        </button>
-      </div>
-
-      {/* Gallery Wrap Zoom Modal */}
-      {showGalleryZoom && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-          onClick={() => setShowGalleryZoom(false)}
-        >
-          <div
-            className="relative bg-white dark:bg-neutral-900 rounded-2xl p-6 max-w-md w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setShowGalleryZoom(false)}
-              className="absolute top-4 right-4 p-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors"
-            >
-              <svg
-                className="w-5 h-5 text-neutral-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-
-            <h4 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
-              Gallery Wrap Detail
-            </h4>
-
-            {/* Frame Corner Illustration */}
-            <div className="relative aspect-square max-w-[280px] mx-auto mb-4">
-              {/* Corner simulation */}
-              <div
-                className="absolute inset-0 rounded-lg overflow-hidden"
-                style={{ backgroundColor: theme.colors.bg }}
-              >
-                {/* Top face */}
-                <div
-                  className="absolute top-0 left-0 right-0 h-8"
-                  style={{
-                    background: `linear-gradient(to bottom, ${theme.colors.bg}, ${theme.colors.bg}dd)`,
-                    transform: "perspective(100px) rotateX(45deg)",
-                    transformOrigin: "bottom",
-                  }}
-                />
-                {/* Left face */}
-                <div
-                  className="absolute top-0 left-0 bottom-0 w-8"
-                  style={{
-                    background: `linear-gradient(to right, ${theme.colors.bg}cc, ${theme.colors.bg})`,
-                    transform: "perspective(100px) rotateY(-45deg)",
-                    transformOrigin: "right",
-                  }}
-                />
-                {/* Main face with map preview */}
-                <div className="absolute inset-8 rounded-sm overflow-hidden">
-                  {mapThumbnail ? (
-                    <img
-                      src={mapThumbnail}
-                      alt="Corner detail"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div
-                      className="w-full h-full"
-                      style={{ backgroundColor: theme.colors.bg }}
-                    />
-                  )}
-                </div>
-              </div>
-
-              {/* Depth measurement annotation */}
-              <div className="absolute -left-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                <div className="h-12 w-px bg-neutral-400" />
-                <span className="text-[10px] text-neutral-500 -rotate-90 whitespace-nowrap">
-                  1.25&quot; depth
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-2 text-sm text-neutral-600 dark:text-neutral-400">
-              <p className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Premium 1.25&quot; solid wood stretcher bars
-              </p>
-              <p className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Museum-quality gallery wrap finish
-              </p>
-              <p className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Image wraps around edges seamlessly
-              </p>
-              <p className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Ready to hang, no frame needed
-              </p>
-            </div>
-          </div>
+          <span>300 DPI print quality</span>
         </div>
-      )}
+        <div className="flex items-center gap-2">
+          <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <span>1.25&quot; wood frame</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <span>Gallery wrap finish</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <span>Free shipping</span>
+        </div>
+      </div>
 
       {/* Navigation Buttons */}
       <div className="flex gap-3 pt-4">
@@ -405,18 +276,11 @@ export default function StepPreview({
                   d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
                 />
               </svg>
-              Add to Cart — $94.00
+              Add to Cart
             </>
           )}
         </button>
       </div>
-
-      {/* Trust indicator */}
-      {!hasViewedPreview && (
-        <p className="text-xs text-center text-neutral-500">
-          Please review your design before adding to cart
-        </p>
-      )}
     </div>
   );
 }

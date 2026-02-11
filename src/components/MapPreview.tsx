@@ -342,9 +342,8 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
     });
   }, []);
 
-  // Capture the full preview including text overlay
-  // Uses Mapbox's native canvas capture + html2canvas for text overlay compositing
-  // Final output: Fixed 5400px × 7200px at 300 DPI for 18"×24" portrait canvas
+  // Capture the full preview at print resolution using an off-screen map
+  // Creates a hidden map at 5400x7200px for true 300 DPI quality on 18"×24" canvas
   const captureImage = useCallback(async (debug: boolean = DEBUG_PRINT_MODE): Promise<string | null> => {
     if (!previewContainer.current || !map.current) return null;
 
@@ -352,71 +351,147 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
     const PRINT_WIDTH = 5400;
     const PRINT_HEIGHT = 7200;
 
-    // Trigger a render to ensure the map is fresh
-    map.current.triggerRepaint();
+    // Get current map state
+    const currentCenter = map.current.getCenter();
+    const currentZoom = map.current.getZoom();
+    const currentStyle = createCustomStyle(theme);
 
-    // Wait for map to be fully rendered before capturing
-    await waitForIdle();
+    // Get preview container size to calculate zoom adjustment
+    const previewRect = previewContainer.current.getBoundingClientRect();
 
-    // Extra delay for WebGL buffer to be ready
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    // Mapbox zoom is relative to viewport size. To show the same geographic area
+    // on a larger canvas, we need to increase zoom by log2(printSize/previewSize)
+    const zoomAdjustment = Math.log2(PRINT_WIDTH / previewRect.width);
+    const adjustedZoom = currentZoom + zoomAdjustment;
+
+    if (debug) {
+      console.log("[MapPreview Debug] Creating off-screen map at", PRINT_WIDTH, "x", PRINT_HEIGHT);
+      console.log("[MapPreview Debug] Preview size:", previewRect.width, "x", previewRect.height);
+      console.log("[MapPreview Debug] Map center:", currentCenter.lng, currentCenter.lat);
+      console.log("[MapPreview Debug] Original zoom:", currentZoom, "Adjusted zoom:", adjustedZoom.toFixed(2));
+    }
 
     try {
-      const container = previewContainer.current;
-      const rect = container.getBoundingClientRect();
+      // Create hidden container for high-res map
+      const hiddenContainer = document.createElement("div");
+      hiddenContainer.style.position = "absolute";
+      hiddenContainer.style.left = "-9999px";
+      hiddenContainer.style.top = "-9999px";
+      hiddenContainer.style.width = `${PRINT_WIDTH}px`;
+      hiddenContainer.style.height = `${PRINT_HEIGHT}px`;
+      document.body.appendChild(hiddenContainer);
+
+      // Create high-resolution off-screen map with adjusted zoom
+      const printMap = new mapboxgl.Map({
+        container: hiddenContainer,
+        style: currentStyle,
+        center: currentCenter,
+        zoom: adjustedZoom,
+        interactive: false,
+        preserveDrawingBuffer: true,
+        attributionControl: false,
+        pitchWithRotate: false,
+        dragRotate: false,
+        touchPitch: false,
+      });
+
+      // Wait for the print map to fully load
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Print map load timeout"));
+        }, 30000);
+
+        printMap.once("idle", () => {
+          clearTimeout(timeout);
+          // Extra delay for all tiles to render
+          setTimeout(resolve, 500);
+        });
+
+        printMap.once("error", (e) => {
+          clearTimeout(timeout);
+          reject(e.error);
+        });
+      });
 
       if (debug) {
-        console.log("[MapPreview Debug] Viewport container size:", rect.width, "x", rect.height);
-        console.log("[MapPreview Debug] Target print size:", PRINT_WIDTH, "x", PRINT_HEIGHT);
+        const printCanvas = printMap.getCanvas();
+        console.log("[MapPreview Debug] Print map canvas size:", printCanvas.width, "x", printCanvas.height);
       }
 
-      // Calculate scale factor to reach print dimensions
-      const scaleX = PRINT_WIDTH / rect.width;
-      const scaleY = PRINT_HEIGHT / rect.height;
-
-      if (debug) {
-        console.log("[MapPreview Debug] Scale factors - X:", scaleX.toFixed(2), "Y:", scaleY.toFixed(2));
-      }
-
-      // Create fixed-size composite canvas at print resolution
+      // Create composite canvas at print resolution
       const compositeCanvas = document.createElement("canvas");
       compositeCanvas.width = PRINT_WIDTH;
       compositeCanvas.height = PRINT_HEIGHT;
       const ctx = compositeCanvas.getContext("2d");
-      if (!ctx) return null;
-
-      // 1. Draw the Mapbox canvas scaled to print dimensions
-      const mapCanvas = map.current.getCanvas();
-
-      if (debug) {
-        console.log("[MapPreview Debug] Mapbox canvas size:", mapCanvas.width, "x", mapCanvas.height);
+      if (!ctx) {
+        printMap.remove();
+        hiddenContainer.remove();
+        return null;
       }
 
-      ctx.drawImage(mapCanvas, 0, 0, PRINT_WIDTH, PRINT_HEIGHT);
+      // 1. Draw the high-res map canvas
+      const printMapCanvas = printMap.getCanvas();
+      ctx.drawImage(printMapCanvas, 0, 0, PRINT_WIDTH, PRINT_HEIGHT);
 
-      // 2. Use html2canvas to capture the text overlay at high resolution
+      // Clean up print map
+      printMap.remove();
+      hiddenContainer.remove();
+
+      // 2. Capture the text overlay from the visible preview
+      const container = previewContainer.current;
+      const rect = container.getBoundingClientRect();
+      const scaleX = PRINT_WIDTH / rect.width;
+      const scaleY = PRINT_HEIGHT / rect.height;
+
+      // Temporarily remove container background so it doesn't cover the map
+      const originalBg = container.style.backgroundColor;
+      container.style.backgroundColor = "transparent";
+
+      // Toggle preview/print elements for capture
+      const previewOnlyElements = container.querySelectorAll(".preview-only-attribution");
+      const printOnlyElements = container.querySelectorAll(".print-only-attribution");
+
+      // Hide preview-only elements, show print-only elements
+      previewOnlyElements.forEach((el) => {
+        (el as HTMLElement).style.display = "none";
+      });
+      printOnlyElements.forEach((el) => {
+        (el as HTMLElement).style.display = "block";
+      });
+
       const overlayCanvas = await html2canvas(container, {
         useCORS: true,
         allowTaint: true,
-        backgroundColor: null, // Transparent background
-        scale: Math.max(scaleX, scaleY), // Scale to match print resolution
+        backgroundColor: null,
+        scale: Math.max(scaleX, scaleY),
         logging: false,
         ignoreElements: (element) => {
-          // Ignore the map container itself, safe zone, and rendering overlay
           if (element === mapContainer.current) return true;
           if (element.classList?.contains("mapboxgl-canvas-container")) return true;
           if (element.classList?.contains("mapboxgl-canvas")) return true;
           if (element.classList?.contains("safe-zone-overlay")) return true;
           if (element.classList?.contains("rendering-overlay")) return true;
+          if (element.classList?.contains("preview-only-attribution")) return true;
           return false;
         },
       });
+
+      // Restore preview/print element visibility
+      previewOnlyElements.forEach((el) => {
+        (el as HTMLElement).style.display = "";
+      });
+      printOnlyElements.forEach((el) => {
+        (el as HTMLElement).style.display = "none";
+      });
+
+      // Restore original background
+      container.style.backgroundColor = originalBg;
 
       if (debug) {
         console.log("[MapPreview Debug] Overlay canvas size:", overlayCanvas.width, "x", overlayCanvas.height);
       }
 
-      // 3. Composite the text overlay on top of the map, scaled to print size
+      // 3. Composite the text overlay on top of the map
       ctx.drawImage(overlayCanvas, 0, 0, PRINT_WIDTH, PRINT_HEIGHT);
 
       // Log final output dimensions
@@ -444,7 +519,7 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
       console.error("Failed to capture image:", err);
       return null;
     }
-  }, [waitForIdle]);
+  }, [theme]);
 
   // Expose methods via ref
   useImperativeHandle(ref, () => ({
@@ -531,6 +606,7 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
         )}
 
         {/* Text overlay - Space Grotesk typography with dynamic halo matching theme */}
+        {/* All sizes use container query units (cqw) to scale with canvas, not viewport */}
         {showTextOverlay && !isLoading && !error && (
           <div
             className="absolute left-0 right-0 pointer-events-none z-20"
@@ -541,28 +617,31 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
             }}
           >
             <div
-              className="text-center py-2 sm:py-3"
+              className="text-center"
               style={{
                 // Hard-edge vector halo: 4 stacked shadows with 0 blur for crisp gap
                 textShadow: `0 0 4px ${theme.colors.bg}, 0 0 4px ${theme.colors.bg}, 0 0 4px ${theme.colors.bg}, 0 0 4px ${theme.colors.bg}`,
+                paddingTop: "2cqw",
+                paddingBottom: "2cqw",
               }}
             >
               {/* City Name - Space Grotesk with 0.1em letter spacing */}
               <h2
-                className="font-semibold mb-1.5 sm:mb-2 leading-tight"
+                className="font-semibold leading-tight"
                 style={{
                   fontFamily: "var(--font-space-grotesk), sans-serif",
                   color: theme.colors.text,
                   opacity: 0.9,
                   letterSpacing: "0.1em",
+                  marginBottom: "1.5cqw",
                   // Dynamic font size: smaller for longer names, fits container width
                   fontSize: cityName.length > 14
-                    ? "clamp(0.6rem, 4.5cqw, 1rem)"
+                    ? "4.5cqw"
                     : cityName.length > 10
-                    ? "clamp(0.7rem, 5.5cqw, 1.25rem)"
+                    ? "5.5cqw"
                     : cityName.length > 6
-                    ? "clamp(0.875rem, 6.5cqw, 1.5rem)"
-                    : "clamp(1rem, 8cqw, 2rem)",
+                    ? "6.5cqw"
+                    : "8cqw",
                 }}
               >
                 {spacedCityName}
@@ -570,8 +649,10 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
 
               {/* Decorative Line */}
               <div
-                className="w-10 sm:w-14 h-px mx-auto mb-1.5 sm:mb-2"
+                className="h-px mx-auto"
                 style={{
+                  width: "10cqw",
+                  marginBottom: "1.5cqw",
                   backgroundColor: theme.colors.text,
                   opacity: 0.9,
                   boxShadow: `0 0 4px ${theme.colors.bg}`,
@@ -580,12 +661,14 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
 
               {/* State/Country Name - Space Grotesk */}
               <p
-                className="text-[10px] sm:text-xs font-light uppercase mb-0.5 sm:mb-1"
+                className="font-light uppercase"
                 style={{
                   fontFamily: "var(--font-space-grotesk), sans-serif",
                   color: theme.colors.text,
                   opacity: 0.9,
                   letterSpacing: "0.1em",
+                  fontSize: "3cqw",
+                  marginBottom: "0.5cqw",
                 }}
               >
                 {stateName}
@@ -594,12 +677,13 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
               {/* Detail Line - coordinates, address, or none */}
               {detailLineType !== "none" && (
                 <p
-                  className="text-[8px] sm:text-[10px] font-light"
+                  className="font-light"
                   style={{
                     fontFamily: "var(--font-space-grotesk), sans-serif",
                     color: theme.colors.text,
                     opacity: 0.7,
                     letterSpacing: "0.1em",
+                    fontSize: "2.5cqw",
                   }}
                 >
                   {detailLineType === "address" && focusPoint?.address
@@ -607,29 +691,48 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
                     : formattedCoords}
                 </p>
               )}
+
+              {/* Print-only: mapmarked.com branding */}
+              <p
+                className="print-only-attribution font-light"
+                style={{
+                  display: "none",
+                  fontFamily: "var(--font-space-grotesk), sans-serif",
+                  color: theme.colors.text,
+                  opacity: 0.5,
+                  letterSpacing: "0.08em",
+                  fontSize: "2cqw",
+                  marginTop: "1cqw",
+                }}
+              >
+                mapmarked.com
+              </p>
             </div>
           </div>
         )}
 
         {/* Mapbox attribution - Ghost Signature at safe zone edge */}
+        {/* All sizes use container query units (cqw) to scale with canvas */}
         {!isLoading && !error && (
           <div
-            className="absolute z-50 pointer-events-none flex flex-col items-end gap-1"
+            className="absolute z-50 pointer-events-none flex flex-col items-end"
             style={{
               // Position at safe zone edge: 6.25% from bottom, 8.33% from right
               bottom: `${SAFE_ZONE_VERTICAL_PERCENT}%`,
               right: `${SAFE_ZONE_HORIZONTAL_PERCENT}%`,
+              gap: "0.3cqw",
             }}
           >
-            {/* Mapbox logo - 85px width */}
+            {/* Preview-only: Mapbox logo - small and subtle (excluded from print) */}
             <svg
-              width="85"
-              height="22"
+              className="preview-only-attribution"
               viewBox="0 0 85 22"
               aria-label="Mapbox"
               style={{
+                width: "14cqw",
+                height: "3.5cqw",
                 opacity: 0.25,
-                filter: "grayscale(100%) brightness(1.2)",
+                filter: "grayscale(100%)",
               }}
             >
               <path
@@ -651,10 +754,11 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
                 mapbox
               </text>
             </svg>
-            {/* Attribution text - 8px */}
+            {/* Preview-only: Attribution text (excluded from print) */}
             <span
+              className="preview-only-attribution"
               style={{
-                fontSize: 8,
+                fontSize: "1.5cqw",
                 fontFamily: "var(--font-space-grotesk), sans-serif",
                 color: theme.colors.text,
                 letterSpacing: "0.02em",
@@ -662,6 +766,20 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
               }}
             >
               © OpenStreetMap
+            </span>
+            {/* Print-only: Text attribution (hidden in preview, shown in print) */}
+            <span
+              className="print-only-attribution"
+              style={{
+                display: "none",
+                fontSize: "1.8cqw",
+                fontFamily: "var(--font-space-grotesk), sans-serif",
+                color: theme.colors.text,
+                letterSpacing: "0.02em",
+                opacity: 0.2,
+              }}
+            >
+              © Mapbox © OpenStreetMap
             </span>
           </div>
         )}

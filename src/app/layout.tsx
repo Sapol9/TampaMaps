@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Playfair_Display, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { SITE } from "@/config/site";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -65,6 +66,7 @@ export default function RootLayout({
         className={`${inter.variable} ${playfair.variable} ${spaceGrotesk.variable} font-sans antialiased min-h-screen bg-white dark:bg-neutral-950`}
       >
         {children}
+        <SpeedInsights />
       </body>
     </html>
   );

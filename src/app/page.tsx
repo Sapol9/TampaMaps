@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import { upload } from "@vercel/blob/client";
 import dynamic from "next/dynamic";
 import themes from "@/data/themes.json";
 import type { Theme } from "@/lib/mapbox/applyTheme";
@@ -235,26 +236,26 @@ export default function Home() {
     const item = cartItems[0]; // For now, checkout the first item
 
     try {
-      // Step 1: Upload image to Vercel Blob (avoids payload size limits)
-      console.log("📤 Uploading image...");
-      const uploadResponse = await fetch("/api/upload-image", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          imageDataUrl: item.thumbnail,
-          filename: `mapmarked-${item.cityName.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.jpg`,
-        }),
-      });
+      // Step 1: Convert data URL to Blob for client-side upload
+      console.log("📤 Uploading image directly to Vercel Blob...");
 
-      const uploadResult = await uploadResponse.json();
-
-      if (uploadResult.error) {
-        console.error("Image upload error:", uploadResult.error);
-        alert("Failed to upload image. Please try again.");
+      if (!item.thumbnail) {
+        alert("No image captured. Please try again.");
         return;
       }
+
+      // Convert data URL to Blob
+      const response = await fetch(item.thumbnail);
+      const imageBlob = await response.blob();
+      const filename = `mapmarked-${item.cityName.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.jpg`;
+
+      // Client-side upload directly to Vercel Blob (bypasses API payload limits)
+      const blob = await upload(filename, imageBlob, {
+        access: "public",
+        handleUploadUrl: "/api/upload-image",
+      });
+
+      console.log("✅ Image uploaded:", blob.url);
 
       // Step 2: Create checkout session with image URL
       console.log("💳 Creating checkout session...");
@@ -267,7 +268,7 @@ export default function Home() {
           cityName: item.cityName,
           stateName: item.stateName,
           themeName: item.theme.name,
-          imageUrl: uploadResult.url, // Vercel Blob URL (not base64)
+          imageUrl: blob.url, // Vercel Blob URL (not base64)
         }),
       });
 

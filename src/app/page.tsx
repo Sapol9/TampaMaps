@@ -235,7 +235,30 @@ export default function Home() {
     const item = cartItems[0]; // For now, checkout the first item
 
     try {
-      const response = await fetch("/api/checkout", {
+      // Step 1: Upload image to Vercel Blob (avoids payload size limits)
+      console.log("📤 Uploading image...");
+      const uploadResponse = await fetch("/api/upload-image", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          imageDataUrl: item.thumbnail,
+          filename: `mapmarked-${item.cityName.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.jpg`,
+        }),
+      });
+
+      const uploadResult = await uploadResponse.json();
+
+      if (uploadResult.error) {
+        console.error("Image upload error:", uploadResult.error);
+        alert("Failed to upload image. Please try again.");
+        return;
+      }
+
+      // Step 2: Create checkout session with image URL
+      console.log("💳 Creating checkout session...");
+      const checkoutResponse = await fetch("/api/checkout", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -244,11 +267,11 @@ export default function Home() {
           cityName: item.cityName,
           stateName: item.stateName,
           themeName: item.theme.name,
-          imageDataUrl: item.thumbnail, // Print-ready image for Printful
+          imageUrl: uploadResult.url, // Vercel Blob URL (not base64)
         }),
       });
 
-      const { url, error } = await response.json();
+      const { url, error } = await checkoutResponse.json();
 
       if (error) {
         console.error("Checkout error:", error);

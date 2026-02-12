@@ -10,7 +10,8 @@ function getStripe() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { cityName, stateName, themeName, imageDataUrl } = body;
+    // imageUrl is the Vercel Blob URL (uploaded separately to avoid payload limits)
+    const { cityName, stateName, themeName, imageUrl } = body;
 
     // Get the base URL - prefer env var for reliability, fall back to request origin
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ||
@@ -80,10 +81,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Store the image data for the webhook to use later
-    if (imageDataUrl && session.id) {
+    // Store the image URL for the webhook to use later
+    if (imageUrl && session.id) {
       storePendingOrder(session.id, {
-        imageDataUrl,
+        imageUrl,
         cityName,
         stateName,
         themeName,

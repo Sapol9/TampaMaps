@@ -133,18 +133,10 @@ interface PrintfulMockupTaskResponse {
 }
 
 async function uploadFileToPrintful(
-  imageDataUrl: string,
+  imageUrl: string,
   filename: string
 ): Promise<PrintfulFileResponse> {
-  // Extract base64 content from data URL
-  // Format: data:image/jpeg;base64,BASE64DATA
-  const base64Match = imageDataUrl.match(/^data:([^;]+);base64,(.+)$/);
-  if (!base64Match) {
-    throw new Error("Invalid data URL format");
-  }
-
-  const base64Content = base64Match[2];
-
+  // Use URL field - Printful will fetch the image from our Vercel Blob URL
   const response = await fetch("https://api.printful.com/files", {
     method: "POST",
     headers: {
@@ -153,7 +145,7 @@ async function uploadFileToPrintful(
     },
     body: JSON.stringify({
       type: "default",
-      data: base64Content, // Use data field for base64
+      url: imageUrl, // Printful fetches from URL (avoids payload size issues)
       filename,
     }),
   });
@@ -380,14 +372,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "No shipping address" }, { status: 400 });
       }
 
-      const { cityName, stateName, themeName, imageDataUrl } = orderData;
+      const { cityName, stateName, themeName, imageUrl } = orderData;
       const productName = `${cityName}, ${stateName} Map Canvas - ${themeName}`;
       const filename = `mapmarked-${cityName.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.jpg`;
 
-      console.log("📤 Uploading file to Printful...");
+      console.log("📤 Uploading file to Printful from URL:", imageUrl);
 
-      // 1. Upload file to Printful
-      const fileResponse = await uploadFileToPrintful(imageDataUrl, filename);
+      // 1. Upload file to Printful (Printful fetches from our Vercel Blob URL)
+      const fileResponse = await uploadFileToPrintful(imageUrl, filename);
       const fileUrl = fileResponse.result.url;
 
       console.log("✅ File uploaded:", fileUrl);

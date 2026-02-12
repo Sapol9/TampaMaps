@@ -4,7 +4,7 @@
  */
 
 interface OrderData {
-  imageDataUrl: string;
+  imageUrl: string; // Vercel Blob URL (not base64 to avoid payload limits)
   cityName: string;
   stateName: string;
   themeName: string;

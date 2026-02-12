@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { storePendingOrder } from "@/lib/orderStorage";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+// Lazy-initialize Stripe to avoid build-time errors
+function getStripe() {
+  return new Stripe(process.env.STRIPE_SECRET_KEY!);
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,6 +13,7 @@ export async function POST(request: NextRequest) {
     const { cityName, stateName, themeName, imageDataUrl } = body;
 
     // Create Stripe Checkout session for $94 canvas print
+    const stripe = getStripe();
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [

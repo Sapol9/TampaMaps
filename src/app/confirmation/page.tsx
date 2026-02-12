@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -11,7 +11,7 @@ interface OrderStatus {
   printfulOrderId: number | null;
 }
 
-export default function ConfirmationPage() {
+function ConfirmationContent() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("session_id");
   const [isLoading, setIsLoading] = useState(true);
@@ -237,5 +237,22 @@ export default function ConfirmationPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Loading fallback for Suspense
+function ConfirmationLoading() {
+  return (
+    <div className="min-h-screen bg-white dark:bg-neutral-950 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-neutral-300 dark:border-white/20 border-t-neutral-600 dark:border-t-white rounded-full animate-spin" />
+    </div>
+  );
+}
+
+export default function ConfirmationPage() {
+  return (
+    <Suspense fallback={<ConfirmationLoading />}>
+      <ConfirmationContent />
+    </Suspense>
   );
 }

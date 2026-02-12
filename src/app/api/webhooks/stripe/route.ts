@@ -6,9 +6,16 @@ import {
   storeCompletedOrder,
 } from "@/lib/orderStorage";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-const PRINTFUL_API_KEY = process.env.PRINTFUL_API_KEY!;
-const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET!;
+// Lazy-initialize to avoid build-time errors when env vars aren't available
+function getStripe() {
+  return new Stripe(process.env.STRIPE_SECRET_KEY!);
+}
+function getPrintfulApiKey() {
+  return process.env.PRINTFUL_API_KEY!;
+}
+function getStripeWebhookSecret() {
+  return process.env.STRIPE_WEBHOOK_SECRET!;
+}
 
 // Printful 18x24 Canvas product variant ID
 // Product: Canvas (ID: 3), Variant: 18"×24" (ID: 7)
@@ -141,7 +148,7 @@ async function uploadFileToPrintful(
   const response = await fetch("https://api.printful.com/files", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${PRINTFUL_API_KEY}`,
+      Authorization: `Bearer ${getPrintfulApiKey()}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -177,7 +184,7 @@ async function createPrintfulOrder(
   const response = await fetch("https://api.printful.com/orders", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${PRINTFUL_API_KEY}`,
+      Authorization: `Bearer ${getPrintfulApiKey()}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -215,7 +222,7 @@ async function generateMockup(fileUrl: string): Promise<string> {
     {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${PRINTFUL_API_KEY}`,
+        Authorization: `Bearer ${getPrintfulApiKey()}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -259,7 +266,7 @@ async function generateMockup(fileUrl: string): Promise<string> {
       `https://api.printful.com/mockup-generator/task?task_key=${taskKey}`,
       {
         headers: {
-          Authorization: `Bearer ${PRINTFUL_API_KEY}`,
+          Authorization: `Bearer ${getPrintfulApiKey()}`,
         },
       }
     );
@@ -325,10 +332,13 @@ export async function POST(request: NextRequest) {
 
   let event: Stripe.Event;
 
+  const stripe = getStripe();
+  const webhookSecret = getStripeWebhookSecret();
+
   try {
     // In development without webhook secret, skip verification
-    if (STRIPE_WEBHOOK_SECRET && STRIPE_WEBHOOK_SECRET !== "whsec_your_webhook_secret_here") {
-      event = stripe.webhooks.constructEvent(body, signature, STRIPE_WEBHOOK_SECRET);
+    if (webhookSecret && webhookSecret !== "whsec_your_webhook_secret_here") {
+      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
     } else {
       // Development mode - parse without verification
       event = JSON.parse(body) as Stripe.Event;

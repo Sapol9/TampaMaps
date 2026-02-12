@@ -12,6 +12,22 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { cityName, stateName, themeName, imageDataUrl } = body;
 
+    // Get the base URL - prefer env var for reliability, fall back to request origin
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ||
+                    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` :
+                    request.nextUrl.origin;
+
+    console.log("📍 Checkout baseUrl:", baseUrl);
+
+    // Validate Stripe key is present
+    if (!process.env.STRIPE_SECRET_KEY) {
+      console.error("❌ STRIPE_SECRET_KEY is not configured");
+      return NextResponse.json(
+        { error: "Payment system not configured" },
+        { status: 500 }
+      );
+    }
+
     // Create Stripe Checkout session for $94 canvas print
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.create({
@@ -55,8 +71,8 @@ export async function POST(request: NextRequest) {
           },
         },
       ],
-      success_url: `${request.nextUrl.origin}/confirmation?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${request.nextUrl.origin}/?canceled=true`,
+      success_url: `${baseUrl}/confirmation?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/?canceled=true`,
       metadata: {
         cityName,
         stateName,
@@ -75,11 +91,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    console.log("✅ Checkout session created:", session.id);
     return NextResponse.json({ sessionId: session.id, url: session.url });
   } catch (error) {
-    console.error("Stripe checkout error:", error);
+    console.error("❌ Stripe checkout error:", error);
+    // Return more details in development
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { error: "Failed to create checkout session" },
+      { error: "Failed to create checkout session", details: errorMessage },
       { status: 500 }
     );
   }

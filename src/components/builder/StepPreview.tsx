@@ -49,6 +49,8 @@ function CanvasMockup({
           className="absolute inset-0 overflow-hidden"
           style={{
             transform: `translateZ(${CANVAS_DEPTH / 2}px)`,
+            backfaceVisibility: "hidden",
+            backgroundColor: bgColor,
             boxShadow: `
               6px 6px 20px rgba(0,0,0,0.25),
               12px 12px 40px rgba(0,0,0,0.15),
@@ -63,25 +65,24 @@ function CanvasMockup({
               className="w-full h-full object-cover"
             />
           ) : (
-            <div
-              className="w-full h-full flex items-center justify-center"
-              style={{ backgroundColor: bgColor }}
-            >
+            <div className="w-full h-full flex items-center justify-center">
               <div className="w-8 h-8 border-2 border-neutral-400 border-t-transparent rounded-full animate-spin" />
             </div>
           )}
         </div>
 
-        {/* Right edge (gallery wrap) */}
-        <div
-          className="absolute top-0 right-0 h-full overflow-hidden"
-          style={{
-            width: CANVAS_DEPTH,
-            transform: `rotateY(90deg) translateZ(${CANVAS_WIDTH - CANVAS_DEPTH / 2}px)`,
-            backgroundColor: bgColor,
-          }}
-        >
-          {imageSrc && (
+        {/* Right edge (gallery wrap) - only show when image is loaded */}
+        {/* Right edge (gallery wrap) - only render when image loaded */}
+        {imageSrc && (
+          <div
+            className="absolute top-0 right-0 h-full overflow-hidden"
+            style={{
+              width: CANVAS_DEPTH,
+              transform: `rotateY(90deg) translateZ(${CANVAS_WIDTH - CANVAS_DEPTH / 2}px)`,
+              backgroundColor: bgColor,
+              backfaceVisibility: "hidden",
+            }}
+          >
             <div
               className="h-full"
               style={{
@@ -97,19 +98,20 @@ function CanvasMockup({
                 style={{ objectPosition: "right center" }}
               />
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Bottom edge (gallery wrap) */}
-        <div
-          className="absolute bottom-0 left-0 w-full overflow-hidden"
-          style={{
-            height: CANVAS_DEPTH,
-            transform: `rotateX(-90deg) translateZ(${CANVAS_HEIGHT - CANVAS_DEPTH / 2}px)`,
-            backgroundColor: bgColor,
-          }}
-        >
-          {imageSrc && (
+        {/* Bottom edge (gallery wrap) - only render when image loaded */}
+        {imageSrc && (
+          <div
+            className="absolute bottom-0 left-0 w-full overflow-hidden"
+            style={{
+              height: CANVAS_DEPTH,
+              transform: `rotateX(-90deg) translateZ(${CANVAS_HEIGHT - CANVAS_DEPTH / 2}px)`,
+              backgroundColor: bgColor,
+              backfaceVisibility: "hidden",
+            }}
+          >
             <div
               className="w-full"
               style={{
@@ -125,8 +127,8 @@ function CanvasMockup({
                 style={{ objectPosition: "center bottom" }}
               />
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Left edge shadow */}
         <div

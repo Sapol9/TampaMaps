@@ -158,6 +158,37 @@ async function uploadFileToPrintful(
   return response.json();
 }
 
+// Wait for Printful file to be fully processed
+async function waitForFileReady(fileId: number): Promise<void> {
+  const maxAttempts = 30; // 30 seconds max
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const response = await fetch(`https://api.printful.com/files/${fileId}`, {
+      headers: {
+        Authorization: `Bearer ${getPrintfulApiKey()}`,
+      },
+    });
+
+    if (response.ok) {
+      const data: PrintfulFileResponse = await response.json();
+      console.log(`📁 File ${fileId} status: ${data.result.status}`);
+
+      if (data.result.status === "ok") {
+        return; // File is ready
+      }
+
+      if (data.result.status === "failed") {
+        throw new Error("File processing failed on Printful");
+      }
+    }
+
+    // Wait 1 second before next check
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+
+  throw new Error("File processing timed out");
+}
+
 async function createPrintfulOrder(
   fileUrl: string,
   recipient: {
@@ -408,11 +439,13 @@ export async function POST(request: NextRequest) {
 
       console.log("✅ Printful order created:", orderResponse.result.id);
 
-      // 3. Generate mockup using file_id (more reliable)
-      console.log("🖼️ Generating mockup with file ID:", fileId);
+      // 3. Wait for file to be fully processed, then generate mockup
+      console.log("⏳ Waiting for file to be processed...");
 
       let mockupUrl = "";
       try {
+        await waitForFileReady(fileId);
+        console.log("🖼️ Generating mockup with file ID:", fileId);
         mockupUrl = await generateMockup(fileId);
         console.log("✅ Mockup generated:", mockupUrl);
       } catch (mockupError) {

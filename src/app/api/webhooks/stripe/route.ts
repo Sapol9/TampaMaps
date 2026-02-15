@@ -393,19 +393,42 @@ export async function POST(request: NextRequest) {
 
       console.log("📋 Order data from metadata:", orderData);
 
-      // Get shipping details from session (type assertion needed)
-      const shippingDetails = (fullSession as unknown as {
-        shipping_details?: {
-          name?: string | null;
-          address?: Stripe.Address | null;
-        } | null
-      }).shipping_details;
+      // Get shipping details - Stripe stores these in different locations depending on API version
+      // Try multiple locations: shipping_details, collected_information.shipping_details
+      const sessionAny = fullSession as unknown as Record<string, unknown>;
+      const collectedInfo = sessionAny.collected_information as Record<string, unknown> | undefined;
+
+      // Log available fields for debugging
+      console.log("📦 Session fields:", {
+        hasShippingDetails: "shipping_details" in sessionAny,
+        hasCollectedInfo: !!collectedInfo,
+        collectedInfoKeys: collectedInfo ? Object.keys(collectedInfo) : [],
+        customerDetails: fullSession.customer_details,
+      });
+
+      // Try to find shipping details in various locations
+      let shippingDetails = sessionAny.shipping_details as {
+        name?: string | null;
+        address?: Stripe.Address | null;
+      } | null | undefined;
+
+      // If not found, check collected_information.shipping_details
+      if (!shippingDetails?.address && collectedInfo?.shipping_details) {
+        shippingDetails = collectedInfo.shipping_details as typeof shippingDetails;
+      }
+
       const customerDetails = fullSession.customer_details;
 
       if (!shippingDetails?.address) {
-        console.error("No shipping address in session:", eventSession.id);
+        console.error("No shipping address found. Session data:", JSON.stringify({
+          shipping_details: sessionAny.shipping_details,
+          collected_information: collectedInfo,
+          customer_details: customerDetails,
+        }, null, 2));
         return NextResponse.json({ error: "No shipping address" }, { status: 400 });
       }
+
+      console.log("📬 Shipping details found:", shippingDetails);
 
       const { cityName, stateName, themeName, imageUrl } = orderData;
       const productName = `${cityName}, ${stateName} Map Canvas - ${themeName}`;

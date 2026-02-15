@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, useImperativeHandle, forwardRef, useCallba
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import "@/styles/mapbox-hardening.css";
-import html2canvas from "html2canvas";
 import { createCustomStyle } from "@/lib/mapbox/createStyle";
 import type { Theme } from "@/lib/mapbox/applyTheme";
 import SafeZoneOverlay from "./SafeZoneOverlay";
@@ -433,66 +432,200 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
       const printMapCanvas = printMap.getCanvas();
       ctx.drawImage(printMapCanvas, 0, 0, PRINT_WIDTH, PRINT_HEIGHT);
 
+      // 1b. Draw marker if focus point exists
+      if (focusPoint) {
+        // Convert focus point coordinates to pixel position on print canvas
+        const markerPoint = printMap.project([focusPoint.lng, focusPoint.lat]);
+        const markerX = markerPoint.x;
+        const markerY = markerPoint.y;
+
+        // Draw minimalist marker (matching preview style)
+        const markerSize = PRINT_WIDTH * 0.012; // ~65px at 5400px width
+        const innerDotSize = markerSize * 0.3;
+
+        ctx.save();
+        // Outer circle (stroke only)
+        ctx.beginPath();
+        ctx.arc(markerX, markerY, markerSize, 0, Math.PI * 2);
+        ctx.strokeStyle = theme.colors.text;
+        ctx.lineWidth = markerSize * 0.15;
+        ctx.stroke();
+
+        // Inner dot (filled)
+        ctx.beginPath();
+        ctx.arc(markerX, markerY, innerDotSize, 0, Math.PI * 2);
+        ctx.fillStyle = theme.colors.text;
+        ctx.fill();
+        ctx.restore();
+
+        if (debug) {
+          console.log("[MapPreview Debug] Marker drawn at:", markerX, markerY);
+        }
+      }
+
       // Clean up print map
       printMap.remove();
       hiddenContainer.remove();
 
-      // 2. Capture the text overlay from the visible preview
-      const container = previewContainer.current;
-      const rect = container.getBoundingClientRect();
-      const scaleX = PRINT_WIDTH / rect.width;
-      const scaleY = PRINT_HEIGHT / rect.height;
+      // 2. Draw text overlay directly on canvas at print resolution
+      // This avoids html2canvas scaling issues with letter-spacing and font sizing
 
-      // Temporarily remove container background so it doesn't cover the map
-      const originalBg = container.style.backgroundColor;
-      container.style.backgroundColor = "transparent";
+      // Safe zone margins (matching preview percentages)
+      const SAFE_MARGIN_H = PRINT_WIDTH * 0.0833; // 8.33%
+      const SAFE_MARGIN_V = PRINT_HEIGHT * 0.0625; // 6.25%
 
-      // Toggle preview/print elements for capture
-      const previewOnlyElements = container.querySelectorAll(".preview-only-attribution");
-      const printOnlyElements = container.querySelectorAll(".print-only-attribution");
+      // Text area starts at bottom safe zone edge
+      const textAreaBottom = PRINT_HEIGHT - SAFE_MARGIN_V;
 
-      // Hide preview-only elements, show print-only elements
-      previewOnlyElements.forEach((el) => {
-        (el as HTMLElement).style.display = "none";
-      });
-      printOnlyElements.forEach((el) => {
-        (el as HTMLElement).style.display = "block";
-      });
+      // Load Space Grotesk font (should already be loaded from page)
+      const fontFamily = "'Space Grotesk', sans-serif";
 
-      const overlayCanvas = await html2canvas(container, {
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: null,
-        scale: Math.max(scaleX, scaleY),
-        logging: false,
-        ignoreElements: (element) => {
-          if (element === mapContainer.current) return true;
-          if (element.classList?.contains("mapboxgl-canvas-container")) return true;
-          if (element.classList?.contains("mapboxgl-canvas")) return true;
-          if (element.classList?.contains("safe-zone-overlay")) return true;
-          if (element.classList?.contains("rendering-overlay")) return true;
-          if (element.classList?.contains("preview-only-attribution")) return true;
-          return false;
-        },
-      });
+      // Calculate font sizes as percentage of width (matching cqw units)
+      // Preview uses cqw, so 1cqw = 1% of container width
+      const cqw = PRINT_WIDTH / 100;
 
-      // Restore preview/print element visibility
-      previewOnlyElements.forEach((el) => {
-        (el as HTMLElement).style.display = "";
-      });
-      printOnlyElements.forEach((el) => {
-        (el as HTMLElement).style.display = "none";
-      });
-
-      // Restore original background
-      container.style.backgroundColor = originalBg;
-
-      if (debug) {
-        console.log("[MapPreview Debug] Overlay canvas size:", overlayCanvas.width, "x", overlayCanvas.height);
+      // City name font size (dynamic based on length, matching preview logic)
+      let cityFontSize: number;
+      if (cityName.length > 14) {
+        cityFontSize = 4.5 * cqw;
+      } else if (cityName.length > 10) {
+        cityFontSize = 5.5 * cqw;
+      } else if (cityName.length > 6) {
+        cityFontSize = 6.5 * cqw;
+      } else {
+        cityFontSize = 8 * cqw;
       }
 
-      // 3. Composite the text overlay on top of the map
-      ctx.drawImage(overlayCanvas, 0, 0, PRINT_WIDTH, PRINT_HEIGHT);
+      // Create text shadow/halo effect
+      const drawTextWithHalo = (
+        text: string,
+        x: number,
+        y: number,
+        fontSize: number,
+        fontWeight: string,
+        letterSpacing: number,
+        opacity: number
+      ) => {
+        ctx.save();
+        ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        // Draw halo (multiple passes for crisp edge)
+        ctx.fillStyle = theme.colors.bg;
+        const haloSize = fontSize * 0.08; // Proportional halo
+        for (let i = 0; i < 4; i++) {
+          ctx.shadowColor = theme.colors.bg;
+          ctx.shadowBlur = haloSize;
+          drawSpacedText(ctx, text, x, y, letterSpacing);
+        }
+
+        // Draw main text
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = theme.colors.text;
+        ctx.globalAlpha = opacity;
+        drawSpacedText(ctx, text, x, y, letterSpacing);
+
+        ctx.restore();
+      };
+
+      // Helper to draw text with letter spacing
+      const drawSpacedText = (
+        context: CanvasRenderingContext2D,
+        text: string,
+        x: number,
+        y: number,
+        spacing: number
+      ) => {
+        if (spacing === 0) {
+          context.fillText(text, x, y);
+          return;
+        }
+
+        // Calculate total width with spacing
+        const chars = text.split("");
+        let totalWidth = 0;
+        chars.forEach((char) => {
+          totalWidth += context.measureText(char).width + spacing;
+        });
+        totalWidth -= spacing; // No spacing after last char
+
+        // Draw each character
+        let currentX = x - totalWidth / 2;
+        chars.forEach((char) => {
+          const charWidth = context.measureText(char).width;
+          context.fillText(char, currentX + charWidth / 2, y);
+          currentX += charWidth + spacing;
+        });
+      };
+
+      // Calculate vertical positions from bottom up
+      // Attribution at very bottom of safe zone
+      const attributionY = textAreaBottom - 1 * cqw;
+      ctx.save();
+      ctx.font = `300 ${1.8 * cqw}px ${fontFamily}`;
+      ctx.textAlign = "right";
+      ctx.fillStyle = theme.colors.text;
+      ctx.globalAlpha = 0.2;
+      ctx.fillText("© Mapbox © OpenStreetMap", PRINT_WIDTH - SAFE_MARGIN_H, attributionY);
+      ctx.restore();
+
+      // mapmarked.com branding
+      const brandingY = attributionY - 3 * cqw;
+      ctx.save();
+      ctx.font = `300 ${2 * cqw}px ${fontFamily}`;
+      ctx.textAlign = "center";
+      ctx.fillStyle = theme.colors.text;
+      ctx.globalAlpha = 0.5;
+      ctx.fillText("mapmarked.com", PRINT_WIDTH / 2, brandingY);
+      ctx.restore();
+
+      // Detail line (coordinates or address)
+      const detailY = brandingY - 2.5 * cqw;
+      if (detailLineType !== "none") {
+        const detailText = detailLineType === "address" && focusPoint?.address
+          ? focusPoint.address.split(",")[0].trim()
+          : formattedCoords;
+        drawTextWithHalo(detailText, PRINT_WIDTH / 2, detailY, 2.5 * cqw, "300", 2.5 * cqw * 0.1, 0.7);
+      }
+
+      // State name
+      const stateY = detailY - 3 * cqw;
+      drawTextWithHalo(stateName.toUpperCase(), PRINT_WIDTH / 2, stateY, 3 * cqw, "300", 3 * cqw * 0.1, 0.9);
+
+      // Decorative line - centered under the city name
+      const lineY = stateY - 2.5 * cqw;
+      const lineWidth = 10 * cqw;
+      ctx.save();
+      // Halo for line
+      ctx.strokeStyle = theme.colors.bg;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = theme.colors.bg;
+      ctx.shadowBlur = 4;
+      ctx.beginPath();
+      ctx.moveTo(PRINT_WIDTH / 2 - lineWidth / 2, lineY);
+      ctx.lineTo(PRINT_WIDTH / 2 + lineWidth / 2, lineY);
+      ctx.stroke();
+      // Main line
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = theme.colors.text;
+      ctx.globalAlpha = 0.9;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(PRINT_WIDTH / 2 - lineWidth / 2, lineY);
+      ctx.lineTo(PRINT_WIDTH / 2 + lineWidth / 2, lineY);
+      ctx.stroke();
+      ctx.restore();
+
+      // City name (spaced letters)
+      const cityY = lineY - 3 * cqw;
+      const spacedCity = cityName.toUpperCase();
+      drawTextWithHalo(spacedCity, PRINT_WIDTH / 2, cityY, cityFontSize, "600", cityFontSize * 0.1, 0.9);
+
+      if (debug) {
+        console.log("[MapPreview Debug] Text overlay rendered directly on canvas");
+        console.log("[MapPreview Debug] City font size:", cityFontSize, "px");
+      }
 
       // Log final output dimensions
       if (debug) {

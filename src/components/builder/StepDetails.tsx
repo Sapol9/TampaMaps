@@ -11,6 +11,7 @@ interface StepDetailsProps {
   onDetailLineTypeChange: (type: DetailLineType) => void;
   onComplete: () => void;
   onBack: () => void;
+  isLoading?: boolean;
 }
 
 export default function StepDetails({
@@ -22,6 +23,7 @@ export default function StepDetails({
   onDetailLineTypeChange,
   onComplete,
   onBack,
+  isLoading = false,
 }: StepDetailsProps) {
   // Format coordinates
   const latDirection = lat >= 0 ? "N" : "S";
@@ -149,15 +151,24 @@ export default function StepDetails({
       <div className="flex justify-center gap-4 pt-4">
         <button
           onClick={onBack}
-          className="px-6 py-3 rounded-full font-medium border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
+          disabled={isLoading}
+          className="px-6 py-3 rounded-full font-medium border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors disabled:opacity-50"
         >
           Back
         </button>
         <button
           onClick={onComplete}
-          className="px-8 py-3 rounded-full font-medium bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:opacity-90 transition-all"
+          disabled={isLoading}
+          className="px-8 py-3 rounded-full font-medium bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:opacity-90 transition-all disabled:opacity-70 flex items-center gap-2"
         >
-          Complete Design
+          {isLoading ? (
+            <>
+              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              Preparing Preview...
+            </>
+          ) : (
+            "Complete Design"
+          )}
         </button>
       </div>
     </div>

@@ -463,6 +463,7 @@ export default function Home() {
                       onDetailLineTypeChange={setDetailLineType}
                       onComplete={handleDetailsNext}
                       onBack={() => setCurrentStep(4)}
+                      isLoading={isCapturingForPreview}
                     />
                   )}
 

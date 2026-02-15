@@ -16,7 +16,7 @@ export interface MapPreviewHandle {
 }
 
 // Debug mode flag - set to true to enable print dimension logging and file download
-const DEBUG_PRINT_MODE = true;
+const DEBUG_PRINT_MODE = false;
 
 interface FocusPoint {
   lat: number;

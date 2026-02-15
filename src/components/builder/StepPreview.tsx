@@ -79,7 +79,7 @@ function CanvasMockup({
           style={{
             width: CANVAS_DEPTH,
             transform: `rotateY(90deg) translateZ(${CANVAS_WIDTH - CANVAS_DEPTH / 2}px)`,
-            backgroundColor: "#1a1a1a",
+            backgroundColor: bgColor,
           }}
         >
           {imageSrc && (
@@ -88,7 +88,7 @@ function CanvasMockup({
               style={{
                 width: CANVAS_WIDTH,
                 transform: `translateX(-${CANVAS_WIDTH - CANVAS_DEPTH}px)`,
-                filter: "brightness(0.55)",
+                filter: "brightness(0.7)",
               }}
             >
               <img
@@ -107,7 +107,7 @@ function CanvasMockup({
           style={{
             height: CANVAS_DEPTH,
             transform: `rotateX(-90deg) translateZ(${CANVAS_HEIGHT - CANVAS_DEPTH / 2}px)`,
-            backgroundColor: "#1a1a1a",
+            backgroundColor: bgColor,
           }}
         >
           {imageSrc && (
@@ -116,7 +116,7 @@ function CanvasMockup({
               style={{
                 height: CANVAS_HEIGHT,
                 transform: `translateY(-${CANVAS_HEIGHT - CANVAS_DEPTH}px)`,
-                filter: "brightness(0.45)",
+                filter: "brightness(0.6)",
               }}
             >
               <img

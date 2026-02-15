@@ -457,10 +457,13 @@ export async function POST(request: NextRequest) {
         email: customerDetails?.email || undefined,
       };
 
+      // Sanitize external ID for Printful (alphanumeric only, max 32 chars)
+      const sanitizedExternalId = eventSession.id.replace(/[^a-zA-Z0-9]/g, "").slice(0, 32);
+
       const orderResponse = await createPrintfulOrder(
         fileUrl,
         recipient,
-        eventSession.id,
+        sanitizedExternalId,
         productName
       );
 

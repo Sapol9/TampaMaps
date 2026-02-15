@@ -470,6 +470,16 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
       // 2. Draw text overlay directly on canvas at print resolution
       // Matches the preview layout exactly (same structure, sizes, and positions)
 
+      // CRITICAL: Wait for Space Grotesk font to be loaded before drawing
+      // If font isn't loaded, canvas falls back to 10px default font
+      await document.fonts.ready;
+      try {
+        await document.fonts.load("600 100px 'Space Grotesk'");
+        await document.fonts.load("300 100px 'Space Grotesk'");
+      } catch {
+        console.warn("[MapPreview] Font loading failed, using fallback");
+      }
+
       // Safe zone margins (matching preview percentages)
       const SAFE_MARGIN_H = PRINT_WIDTH * 0.0833; // 8.33%
       const SAFE_MARGIN_V = PRINT_HEIGHT * 0.0625; // 6.25%
@@ -477,13 +487,14 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
       // cqw = 1% of container width (matching CSS container query units)
       const cqw = PRINT_WIDTH / 100;
 
-      // Font family (Space Grotesk should be loaded)
-      const fontFamily = "'Space Grotesk', sans-serif";
+      // Font family - use the CSS variable font stack
+      const fontFamily = "Space Grotesk, sans-serif";
 
       // City name: add space between each letter (matching preview's spacedCityName)
       const spacedCity = cityName.toUpperCase().split("").join(" ");
 
       // City name font size (dynamic based on length, matching preview logic)
+      // These values match the CSS: fontSize in cqw units
       let cityFontSize: number;
       if (cityName.length > 14) {
         cityFontSize = 4.5 * cqw;
@@ -493,6 +504,12 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
         cityFontSize = 6.5 * cqw;
       } else {
         cityFontSize = 8 * cqw;
+      }
+
+      if (debug) {
+        console.log("[MapPreview Debug] Font check - loaded fonts:",
+          Array.from(document.fonts).filter(f => f.family.includes('Space')).map(f => `${f.weight} ${f.family}`));
+        console.log("[MapPreview Debug] cqw =", cqw, "cityFontSize =", cityFontSize);
       }
 
       // Helper: Draw text with halo effect (matching preview's textShadow)
@@ -507,39 +524,35 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
       ) => {
         ctx.save();
         ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
-        ctx.textAlign = "center";
+        ctx.textAlign = "left"; // We manually center
         ctx.textBaseline = "top";
 
         // Draw halo (4 passes with blur, matching CSS textShadow)
         ctx.fillStyle = theme.colors.bg;
+        const haloBlur = Math.max(8, fontSize * 0.08);
         for (let i = 0; i < 4; i++) {
           ctx.shadowColor = theme.colors.bg;
-          ctx.shadowBlur = 4 * (PRINT_WIDTH / 400); // Scale blur for print
-          drawSpacedText(ctx, text, x, y, letterSpacing);
+          ctx.shadowBlur = haloBlur;
+          drawSpacedTextInner(ctx, text, x, y, letterSpacing);
         }
 
         // Draw main text
         ctx.shadowBlur = 0;
         ctx.fillStyle = theme.colors.text;
         ctx.globalAlpha = opacity;
-        drawSpacedText(ctx, text, x, y, letterSpacing);
+        drawSpacedTextInner(ctx, text, x, y, letterSpacing);
 
         ctx.restore();
       };
 
-      // Helper: Draw text with letter spacing
-      const drawSpacedText = (
+      // Helper: Draw text with letter spacing, centered at x
+      const drawSpacedTextInner = (
         context: CanvasRenderingContext2D,
         text: string,
-        x: number,
+        centerX: number,
         y: number,
         spacing: number
       ) => {
-        if (spacing === 0) {
-          context.fillText(text, x, y);
-          return;
-        }
-
         // Measure total width with spacing
         const chars = text.split("");
         let totalWidth = 0;
@@ -548,12 +561,15 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
         });
         totalWidth -= spacing; // No spacing after last char
 
-        // Draw each character centered
-        let currentX = x - totalWidth / 2;
+        if (debug) {
+          console.log(`[MapPreview Debug] Drawing "${text.substring(0, 10)}..." totalWidth=${totalWidth.toFixed(0)}`);
+        }
+
+        // Draw each character, starting from left edge to center the text
+        let currentX = centerX - totalWidth / 2;
         chars.forEach((char) => {
-          const charWidth = context.measureText(char).width;
-          context.fillText(char, currentX + charWidth / 2, y);
-          currentX += charWidth + spacing;
+          context.fillText(char, currentX, y);
+          currentX += context.measureText(char).width + spacing;
         });
       };
 

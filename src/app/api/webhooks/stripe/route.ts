@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import {
-  getPendingOrder,
-  deletePendingOrder,
-  storeCompletedOrder,
-} from "@/lib/orderStorage";
+import { storeCompletedOrder } from "@/lib/orderStorage";
 
 // Lazy-initialize to avoid build-time errors when env vars aren't available
 function getStripe() {
@@ -378,16 +374,24 @@ export async function POST(request: NextRequest) {
     console.log("📦 Processing completed checkout:", eventSession.id);
 
     try {
-      // Get the stored order data
-      const orderData = getPendingOrder(eventSession.id);
+      // Retrieve full session with metadata and shipping details
+      const fullSession = await stripe.checkout.sessions.retrieve(eventSession.id);
 
-      if (!orderData) {
-        console.error("No pending order found for session:", eventSession.id);
-        return NextResponse.json({ error: "No order data found" }, { status: 400 });
+      // Get order data from Stripe metadata (stored during checkout)
+      const metadata = fullSession.metadata;
+      if (!metadata?.imageUrl || !metadata?.cityName) {
+        console.error("Missing metadata for session:", eventSession.id, metadata);
+        return NextResponse.json({ error: "No order data found in metadata" }, { status: 400 });
       }
 
-      // Retrieve full session with shipping details
-      const fullSession = await stripe.checkout.sessions.retrieve(eventSession.id);
+      const orderData = {
+        imageUrl: metadata.imageUrl,
+        cityName: metadata.cityName,
+        stateName: metadata.stateName || "",
+        themeName: metadata.themeName || "",
+      };
+
+      console.log("📋 Order data from metadata:", orderData);
 
       // Get shipping details from session (type assertion needed)
       const shippingDetails = (fullSession as unknown as {
@@ -458,9 +462,6 @@ export async function POST(request: NextRequest) {
         mockupUrl,
         printfulOrderId: orderResponse.result.id,
       });
-
-      // Clean up pending order
-      deletePendingOrder(eventSession.id);
 
       console.log("✅ Order processing complete for session:", eventSession.id);
 

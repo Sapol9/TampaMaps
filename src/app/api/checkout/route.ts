@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { storePendingOrder } from "@/lib/orderStorage";
 
 // Lazy-initialize Stripe to avoid build-time errors
 function getStripe() {
@@ -80,19 +79,9 @@ export async function POST(request: NextRequest) {
         cityName,
         stateName,
         themeName,
+        imageUrl, // Store image URL in Stripe metadata for webhook retrieval
       },
     });
-
-    // Store the image URL for the webhook to use later
-    if (imageUrl && session.id) {
-      storePendingOrder(session.id, {
-        imageUrl,
-        cityName,
-        stateName,
-        themeName,
-        createdAt: Date.now(),
-      });
-    }
 
     console.log("✅ Checkout session created:", session.id);
     return NextResponse.json({ sessionId: session.id, url: session.url });

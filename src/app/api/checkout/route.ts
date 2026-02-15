@@ -13,12 +13,12 @@ export async function POST(request: NextRequest) {
     // imageUrl is the Vercel Blob URL (uploaded separately to avoid payload limits)
     const { cityName, stateName, themeName, imageUrl } = body;
 
-    // Get the base URL - prefer env var for reliability, fall back to request origin
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ||
-                    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` :
-                    request.nextUrl.origin;
+    // Get the base URL - prefer NEXT_PUBLIC_SITE_URL for production
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL
+      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
+      || request.nextUrl.origin;
 
-    console.log("📍 Checkout baseUrl:", baseUrl);
+    console.log("📍 Checkout baseUrl:", baseUrl, "| NEXT_PUBLIC_SITE_URL:", process.env.NEXT_PUBLIC_SITE_URL);
 
     // Validate Stripe key is present
     if (!process.env.STRIPE_SECRET_KEY) {

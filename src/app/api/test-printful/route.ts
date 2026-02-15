@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  const apiKey = process.env.PRINTFUL_API_KEY;
+  const apiKey = process.env.PRINTFUL_API_TOKEN;
 
   if (!apiKey) {
     return NextResponse.json({
-      error: "PRINTFUL_API_KEY not configured",
+      error: "PRINTFUL_API_TOKEN not configured",
       hasKey: false,
     });
   }

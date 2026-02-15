@@ -7,7 +7,7 @@ function getStripe() {
   return new Stripe(process.env.STRIPE_SECRET_KEY!);
 }
 function getPrintfulApiKey() {
-  return process.env.PRINTFUL_API_KEY!;
+  return process.env.PRINTFUL_API_TOKEN!;
 }
 function getStripeWebhookSecret() {
   return process.env.STRIPE_WEBHOOK_SECRET!;

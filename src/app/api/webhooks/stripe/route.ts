@@ -207,8 +207,8 @@ async function createPrintfulOrder(
   return response.json();
 }
 
-async function generateMockup(fileUrl: string): Promise<string> {
-  // Start mockup generation task
+async function generateMockup(fileId: number): Promise<string> {
+  // Start mockup generation task using file_id (more reliable than image_url)
   const createResponse = await fetch(
     `https://api.printful.com/mockup-generator/create-task/${PRINTFUL_PRODUCT_ID}`,
     {
@@ -223,7 +223,7 @@ async function generateMockup(fileUrl: string): Promise<string> {
         files: [
           {
             placement: "default",
-            image_url: fileUrl,
+            file_id: fileId, // Use file_id instead of image_url for reliability
             position: {
               area_width: 1800,
               area_height: 2400,
@@ -380,9 +380,10 @@ export async function POST(request: NextRequest) {
 
       // 1. Upload file to Printful (Printful fetches from our Vercel Blob URL)
       const fileResponse = await uploadFileToPrintful(imageUrl, filename);
+      const fileId = fileResponse.result.id;
       const fileUrl = fileResponse.result.url;
 
-      console.log("✅ File uploaded:", fileUrl);
+      console.log("✅ File uploaded, ID:", fileId, "URL:", fileUrl);
 
       // 2. Create Printful order
       console.log("📝 Creating Printful order...");
@@ -407,12 +408,12 @@ export async function POST(request: NextRequest) {
 
       console.log("✅ Printful order created:", orderResponse.result.id);
 
-      // 3. Generate mockup
-      console.log("🖼️ Generating mockup...");
+      // 3. Generate mockup using file_id (more reliable)
+      console.log("🖼️ Generating mockup with file ID:", fileId);
 
       let mockupUrl = "";
       try {
-        mockupUrl = await generateMockup(fileUrl);
+        mockupUrl = await generateMockup(fileId);
         console.log("✅ Mockup generated:", mockupUrl);
       } catch (mockupError) {
         console.error("Mockup generation failed (non-critical):", mockupError);

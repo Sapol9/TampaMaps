@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import type { Theme } from "@/lib/mapbox/applyTheme";
 
 interface StepPreviewProps {
@@ -168,15 +167,8 @@ export default function StepPreview({
   onBack,
   isCapturing = false,
 }: StepPreviewProps) {
-  const [hasViewedPreview, setHasViewedPreview] = useState(false);
-
-  // Mark preview as viewed after thumbnail loads
-  useEffect(() => {
-    if (mapThumbnail) {
-      const timer = setTimeout(() => setHasViewedPreview(true), 800);
-      return () => clearTimeout(timer);
-    }
-  }, [mapThumbnail]);
+  // Button is ready as soon as thumbnail is loaded
+  const isReady = !!mapThumbnail && !isCapturing;
 
   return (
     <div className="space-y-6">
@@ -249,9 +241,9 @@ export default function StepPreview({
         </button>
         <button
           onClick={onAddToCart}
-          disabled={!hasViewedPreview || isCapturing}
+          disabled={!isReady}
           className={`flex-1 py-3 rounded-full font-medium transition-all flex items-center justify-center gap-2 ${
-            hasViewedPreview && !isCapturing
+            isReady
               ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:opacity-90"
               : "bg-neutral-300 dark:bg-neutral-700 text-neutral-500 cursor-not-allowed"
           }`}

@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
           deviceScaleFactor: 1,
         },
         executablePath: await chromium.executablePath(),
-        headless: chromium.headless,
+        headless: true,
       });
     } else {
       // Local development - find Chrome

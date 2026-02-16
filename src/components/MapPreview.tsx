@@ -8,7 +8,7 @@ import { createCustomStyle } from "@/lib/mapbox/createStyle";
 import type { Theme } from "@/lib/mapbox/applyTheme";
 import SafeZoneOverlay from "./SafeZoneOverlay";
 import RenderingOverlay from "./RenderingOverlay";
-// Note: We use direct canvas capture instead of html-to-image for WebGL support
+// Print capture uses server-side Mapbox Static API + Sharp (see /api/generate-print)
 
 export interface MapPreviewHandle {
   captureImage: (debug?: boolean) => Promise<string | null>;
@@ -343,269 +343,55 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
     });
   }, []);
 
-  // Capture the full preview at print resolution using direct canvas capture
-  // Creates an off-screen Mapbox map at 5400x7200px, then captures via canvas.toDataURL()
-  // This approach works with WebGL content (unlike html-to-image)
+  // Capture the full preview at print resolution using server-side Mapbox Static API + Sharp
+  // This approach renders the map via Mapbox Static API and composites text with Sharp SVG overlay
   const captureImage = useCallback(async (debug: boolean = DEBUG_PRINT_MODE): Promise<string | null> => {
-    if (!previewContainer.current || !map.current) return null;
+    if (!map.current) return null;
 
     // Show loading state
     setIsCapturing(true);
 
-    // Fixed print dimensions (300 DPI for 18"×24")
-    const PRINT_WIDTH = 5400;
-    const PRINT_HEIGHT = 7200;
-
     // Get current map state
     const currentCenter = map.current.getCenter();
     const currentZoom = map.current.getZoom();
-    const currentStyle = createCustomStyle(theme);
-
-    // Get preview container size to calculate zoom adjustment
-    const previewRect = previewContainer.current.getBoundingClientRect();
-
-    // Mapbox zoom is relative to viewport size. To show the same geographic area
-    // on a larger canvas, we need to increase zoom by log2(printSize/previewSize)
-    const zoomAdjustment = Math.log2(PRINT_WIDTH / previewRect.width);
-    const adjustedZoom = currentZoom + zoomAdjustment;
-
-    // cqw = 1% of container width (for converting CSS container query units to pixels)
-    const cqw = PRINT_WIDTH / 100;
 
     if (debug) {
-      console.log("[MapPreview Debug] Creating off-screen capture at", PRINT_WIDTH, "x", PRINT_HEIGHT);
-      console.log("[MapPreview Debug] Preview size:", previewRect.width, "x", previewRect.height);
+      console.log("[MapPreview Debug] Requesting server-side print generation");
       console.log("[MapPreview Debug] Map center:", currentCenter.lng, currentCenter.lat);
-      console.log("[MapPreview Debug] Original zoom:", currentZoom, "Adjusted zoom:", adjustedZoom.toFixed(2));
+      console.log("[MapPreview Debug] Zoom:", currentZoom);
     }
 
     try {
-      // Ensure fonts are loaded before rendering
-      await document.fonts.ready;
-      try {
-        await document.fonts.load("600 100px 'Space Grotesk'");
-        await document.fonts.load("300 100px 'Space Grotesk'");
-      } catch {
-        console.warn("[MapPreview] Font loading failed, using fallback");
-      }
-
-      // Create container for the print map - must be visible for WebGL to render
-      // Use opacity: 0.01 (not 0) and position off-screen with overflow hidden on body
-      const printContainer = document.createElement("div");
-      printContainer.style.cssText = `
-        position: fixed;
-        left: 0;
-        top: 0;
-        width: ${PRINT_WIDTH}px;
-        height: ${PRINT_HEIGHT}px;
-        overflow: hidden;
-        background-color: ${theme.colors.bg};
-        z-index: 99999;
-        opacity: 0.01;
-        pointer-events: none;
-      `;
-      document.body.appendChild(printContainer);
-
-      // Create map container inside print container
-      const mapDiv = document.createElement("div");
-      mapDiv.style.cssText = `
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-      `;
-      printContainer.appendChild(mapDiv);
-
-      // Create high-resolution off-screen map
-      const printMap = new mapboxgl.Map({
-        container: mapDiv,
-        style: currentStyle,
-        center: currentCenter,
-        zoom: adjustedZoom,
-        interactive: false,
-        preserveDrawingBuffer: true,
-        attributionControl: false,
-        pitchWithRotate: false,
-        dragRotate: false,
-        touchPitch: false,
+      const response = await fetch("/api/generate-print", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          center: [currentCenter.lng, currentCenter.lat],
+          zoom: currentZoom,
+          themeId: theme.id,
+          cityName,
+          stateName,
+          coordinates: formattedCoords,
+          focusPoint: focusPoint || undefined,
+          detailLineType,
+        }),
       });
 
-      // Wait for the print map to fully load with robust tile checking
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          console.warn("[MapPreview] Print map load timeout - proceeding anyway");
-          resolve();
-        }, 30000);
-
-        printMap.once("error", (e) => {
-          clearTimeout(timeout);
-          reject(e.error);
-        });
-
-        // First wait for initial load
-        printMap.once("load", () => {
-          if (debug) {
-            console.log("[MapPreview Debug] Print map 'load' event fired");
-          }
-
-          // Then wait for idle with tile verification
-          const waitForTiles = () => {
-            if (printMap.areTilesLoaded() && printMap.loaded() && !printMap.isMoving()) {
-              if (debug) {
-                console.log("[MapPreview Debug] All tiles loaded, waiting for render...");
-              }
-              // Give WebGL extra time to finish rendering
-              setTimeout(() => {
-                clearTimeout(timeout);
-                resolve();
-              }, 2000);
-            } else {
-              if (debug) {
-                console.log("[MapPreview Debug] Tiles not ready, waiting for idle...");
-              }
-              printMap.once("idle", () => {
-                setTimeout(waitForTiles, 200);
-              });
-            }
-          };
-
-          printMap.once("idle", waitForTiles);
-        });
-      });
-
-      // Get the Mapbox canvas directly - this captures WebGL content
-      const mapCanvas = printMap.getCanvas();
-
-      // Create final composite canvas
-      const finalCanvas = document.createElement("canvas");
-      finalCanvas.width = PRINT_WIDTH;
-      finalCanvas.height = PRINT_HEIGHT;
-      const ctx = finalCanvas.getContext("2d");
-
-      if (!ctx) {
-        throw new Error("Failed to get canvas context");
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to generate print image");
       }
 
-      // Draw background
-      ctx.fillStyle = theme.colors.bg;
-      ctx.fillRect(0, 0, PRINT_WIDTH, PRINT_HEIGHT);
-
-      // Draw the map canvas onto our final canvas
-      ctx.drawImage(mapCanvas, 0, 0, PRINT_WIDTH, PRINT_HEIGHT);
-
-      // Add marker if focus point exists (draw on canvas)
-      if (focusPoint) {
-        const markerSize = PRINT_WIDTH * 0.012;
-        const point = printMap.project([focusPoint.lng, focusPoint.lat]);
-
-        // Outer circle
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, markerSize, 0, Math.PI * 2);
-        ctx.strokeStyle = theme.colors.text;
-        ctx.lineWidth = markerSize * 0.15;
-        ctx.stroke();
-
-        // Inner dot
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, markerSize * 0.3, 0, Math.PI * 2);
-        ctx.fillStyle = theme.colors.text;
-        ctx.fill();
-      }
-
-      // Clean up the print map
-      printMap.remove();
-      printContainer.remove();
-
-      // Now draw text overlay using SVG for better rendering
-      // Create SVG with all text elements
-      const cityFontSize = cityName.length > 14 ? 4.5 * cqw :
-                          cityName.length > 10 ? 5.5 * cqw :
-                          cityName.length > 6 ? 6.5 * cqw : 8 * cqw;
-
-      const textBottomY = PRINT_HEIGHT * (1 - SAFE_ZONE_VERTICAL_PERCENT / 100);
-      const textCenterX = PRINT_WIDTH / 2;
-
-      // Calculate text positions from bottom up
-      const detailText = detailLineType === "address" && focusPoint?.address
-        ? focusPoint.address.split(",")[0].trim()
-        : formattedCoords;
-
-      // Text halo effect using multiple draws
-      const drawTextWithHalo = (
-        text: string,
-        x: number,
-        y: number,
-        fontSize: number,
-        fontWeight: string,
-        opacity: number
-      ) => {
-        ctx.font = `${fontWeight} ${fontSize}px 'Space Grotesk', sans-serif`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-
-        // Draw halo (multiple offset strokes)
-        ctx.fillStyle = theme.colors.bg;
-        const haloOffsets = [-2, -1, 0, 1, 2];
-        for (const ox of haloOffsets) {
-          for (const oy of haloOffsets) {
-            if (ox !== 0 || oy !== 0) {
-              ctx.globalAlpha = 0.5;
-              ctx.fillText(text, x + ox * 2, y + oy * 2);
-            }
-          }
-        }
-
-        // Draw main text
-        ctx.fillStyle = theme.colors.text;
-        ctx.globalAlpha = opacity;
-        ctx.fillText(text, x, y);
-        ctx.globalAlpha = 1;
-      };
-
-      // Position calculations (bottom-up from safe zone edge)
-      let currentY = textBottomY - 2 * cqw; // Padding from bottom
-
-      // Detail line (coordinates/address)
-      if (detailLineType !== "none") {
-        drawTextWithHalo(detailText, textCenterX, currentY, 2.5 * cqw, "300", 0.7);
-        currentY -= 3.5 * cqw;
-      }
-
-      // State name
-      drawTextWithHalo(stateName.toUpperCase(), textCenterX, currentY, 3 * cqw, "300", 0.9);
-      currentY -= 4 * cqw;
-
-      // Decorative line
-      ctx.fillStyle = theme.colors.text;
-      ctx.globalAlpha = 0.9;
-      ctx.fillRect(textCenterX - 5 * cqw, currentY, 10 * cqw, 1);
-      ctx.globalAlpha = 1;
-      currentY -= 3 * cqw;
-
-      // City name
-      drawTextWithHalo(spacedCityName, textCenterX, currentY, cityFontSize, "600", 0.9);
-
-      // Attribution (bottom-right)
-      const attrX = PRINT_WIDTH * (1 - SAFE_ZONE_HORIZONTAL_PERCENT / 100);
-      const attrY = textBottomY;
-      ctx.font = `300 ${1.5 * cqw}px 'Space Grotesk', sans-serif`;
-      ctx.textAlign = "right";
-      ctx.textBaseline = "bottom";
-      ctx.fillStyle = theme.colors.text;
-      ctx.globalAlpha = 0.15;
-      ctx.fillText("© Mapbox © OpenStreetMap", attrX, attrY);
-      ctx.globalAlpha = 1;
-
-      // Convert to JPEG
-      const dataUrl = finalCanvas.toDataURL("image/jpeg", 0.95);
+      const { imageDataUrl } = await response.json();
 
       if (debug) {
-        console.log("[MapPreview Debug] ✅ Capture complete");
+        console.log("[MapPreview Debug] ✅ Server-side capture complete");
         // Download for inspection
         const link = document.createElement("a");
         link.download = `mapmarked-print-${Date.now()}.jpg`;
-        link.href = dataUrl;
+        link.href = imageDataUrl;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -613,13 +399,13 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
       }
 
       setIsCapturing(false);
-      return dataUrl;
+      return imageDataUrl;
     } catch (err) {
       console.error("Failed to capture image:", err);
       setIsCapturing(false);
       return null;
     }
-  }, [theme, cityName, stateName, focusPoint, detailLineType, formattedCoords, spacedCityName]);
+  }, [theme.id, cityName, stateName, focusPoint, detailLineType, formattedCoords]);
 
   // Expose methods via ref
   useImperativeHandle(ref, () => ({

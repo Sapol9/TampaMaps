@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import puppeteer from "puppeteer-core";
-import chromium from "@sparticuz/chromium";
+import chromium from "@sparticuz/chromium-min";
 
 /**
  * Server-side print image generation using Puppeteer + @sparticuz/chromium
@@ -76,6 +76,11 @@ export async function POST(request: NextRequest) {
     const isProduction = process.env.NODE_ENV === "production";
 
     if (isProduction) {
+      // Load Chromium binary from remote URL (required for Vercel serverless)
+      const executablePath = await chromium.executablePath(
+        "https://github.com/Sparticuz/chromium/releases/download/v131.0.0/chromium-v131.0.0-pack.tar"
+      );
+
       browser = await puppeteer.launch({
         args: chromium.args,
         defaultViewport: {
@@ -83,7 +88,7 @@ export async function POST(request: NextRequest) {
           height: PRINT_HEIGHT,
           deviceScaleFactor: 1,
         },
-        executablePath: await chromium.executablePath(),
+        executablePath,
         headless: true,
       });
     } else {

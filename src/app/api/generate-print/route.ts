@@ -1,35 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import sharp from "sharp";
-import themes from "@/data/themes.json";
-import type { Theme } from "@/lib/mapbox/applyTheme";
 
 /**
- * Server-side print image generation using Mapbox Static Images API + Sharp
+ * Proxy to the external MapMarked Render Server
  *
- * Uses Mapbox's default styles (no WebGL needed) and composites text with Sharp.
- * Static API max is 1280x1280 @2x (2560x2560), so we tile and stitch for larger images.
+ * The render server uses Puppeteer with real WebGL to capture exact map previews.
+ * This proxy keeps the RENDER_SECRET server-side and handles job polling.
  */
 
-// Print dimensions (300 DPI for 18"×24")
-const PRINT_WIDTH = 5400;
-const PRINT_HEIGHT = 7200;
+const RENDER_SERVER_URL = process.env.RENDER_SERVER_URL;
+const RENDER_SECRET = process.env.RENDER_SECRET;
 
-// Static API request dimensions (will be doubled with @2x)
-const STATIC_REQUEST_WIDTH = 960;
-const STATIC_REQUEST_HEIGHT = 1280;
-
-// Safe zone percentages
-const SAFE_ZONE_VERTICAL_PERCENT = (1.5 / 24) * 100; // 6.25%
-const SAFE_ZONE_HORIZONTAL_PERCENT = (1.5 / 18) * 100; // 8.33%
-
-// Map theme IDs to closest Mapbox default styles
-const MAPBOX_STYLE_MAP: Record<string, string> = {
-  obsidian: "mapbox/dark-v11",
-  cobalt: "mapbox/navigation-night-v1",
-  parchment: "mapbox/light-v11",
-  coastal: "mapbox/outdoors-v12",
-  copper: "mapbox/dark-v11",
-};
+// Polling configuration
+const POLL_INTERVAL_MS = 2000;
+const MAX_POLL_ATTEMPTS = 45; // 90 seconds max
 
 interface GeneratePrintRequest {
   center: [number, number]; // [lng, lat]
@@ -44,243 +27,133 @@ interface GeneratePrintRequest {
     address?: string;
   };
   detailLineType: "coordinates" | "address" | "none";
+  paid?: boolean;
 }
 
-/**
- * Creates SVG text overlay matching the preview styling
- * Note: Uses system fonts (Arial/Helvetica) since Sharp can't fetch external fonts
- */
-function createTextOverlaySVG(
-  theme: Theme,
-  cityName: string,
-  stateName: string,
-  detailText: string,
-  detailLineType: string
-): string {
-  // cqw equivalent at print resolution
-  const cqw = PRINT_WIDTH / 100;
+interface RenderJobResponse {
+  jobId: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  imageBase64?: string;
+  error?: string;
+}
 
-  // Calculate positions
-  const textBottomY = PRINT_HEIGHT * (1 - SAFE_ZONE_VERTICAL_PERCENT / 100);
-  const textCenterX = PRINT_WIDTH / 2;
-  const safeZoneRight = PRINT_WIDTH * (1 - SAFE_ZONE_HORIZONTAL_PERCENT / 100);
+async function submitRenderJob(params: {
+  lat: number;
+  lng: number;
+  zoom: number;
+  themeId: string;
+  city: string;
+  state: string;
+  coordinates: string;
+  paid: boolean;
+  focusPoint?: { lat: number; lng: number; address?: string };
+  detailLineType: string;
+}): Promise<{ jobId: string }> {
+  const response = await fetch(`${RENDER_SERVER_URL}/render`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-render-secret": RENDER_SECRET!,
+    },
+    body: JSON.stringify({
+      ...params,
+      width: 5400,
+      height: 7200,
+    }),
+  });
 
-  // Space out city name letters
-  const spacedCityName = cityName.toUpperCase().split("").join(" ");
-
-  // Dynamic city font size based on length
-  const cityFontSize =
-    cityName.length > 14
-      ? 4.5 * cqw
-      : cityName.length > 10
-        ? 5.5 * cqw
-        : cityName.length > 6
-          ? 6.5 * cqw
-          : 8 * cqw;
-
-  // Calculate Y positions (bottom-up)
-  let currentY = textBottomY - 2 * cqw;
-
-  const detailY = currentY;
-  currentY -= detailLineType !== "none" ? 3.5 * cqw : 0;
-
-  const stateY = currentY;
-  currentY -= 4 * cqw;
-
-  const lineY = currentY;
-  currentY -= 3 * cqw;
-
-  const cityY = currentY;
-
-  // Escape XML special characters
-  const escapeXml = (str: string): string =>
-    str
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&apos;");
-
-  // Font settings - use system fonts that Sharp can render
-  const fontFamily = "Helvetica, Arial, sans-serif";
-  const haloWidth = 0.12 * cqw;
-
-  return `<svg width="${PRINT_WIDTH}" height="${PRINT_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-  <!-- City name with halo -->
-  <text
-    x="${textCenterX}"
-    y="${cityY}"
-    text-anchor="middle"
-    dominant-baseline="middle"
-    font-family="${fontFamily}"
-    font-weight="600"
-    font-size="${cityFontSize}"
-    letter-spacing="0.1em"
-    stroke="${theme.colors.bg}"
-    stroke-width="${haloWidth}"
-    stroke-linejoin="round"
-    fill="${theme.colors.text}"
-    fill-opacity="0.9"
-    paint-order="stroke fill"
-  >${escapeXml(spacedCityName)}</text>
-
-  <!-- Decorative line -->
-  <rect
-    x="${textCenterX - 5 * cqw}"
-    y="${lineY}"
-    width="${10 * cqw}"
-    height="${Math.max(2, cqw * 0.05)}"
-    fill="${theme.colors.text}"
-    fill-opacity="0.9"
-  />
-
-  <!-- State name with halo -->
-  <text
-    x="${textCenterX}"
-    y="${stateY}"
-    text-anchor="middle"
-    dominant-baseline="middle"
-    font-family="${fontFamily}"
-    font-weight="300"
-    font-size="${3 * cqw}"
-    letter-spacing="0.1em"
-    stroke="${theme.colors.bg}"
-    stroke-width="${haloWidth}"
-    stroke-linejoin="round"
-    fill="${theme.colors.text}"
-    fill-opacity="0.9"
-    paint-order="stroke fill"
-  >${escapeXml(stateName.toUpperCase())}</text>
-
-  ${
-    detailLineType !== "none"
-      ? `<!-- Detail line (coordinates/address) -->
-  <text
-    x="${textCenterX}"
-    y="${detailY}"
-    text-anchor="middle"
-    dominant-baseline="middle"
-    font-family="${fontFamily}"
-    font-weight="300"
-    font-size="${2.5 * cqw}"
-    letter-spacing="0.1em"
-    stroke="${theme.colors.bg}"
-    stroke-width="${haloWidth * 0.8}"
-    stroke-linejoin="round"
-    fill="${theme.colors.text}"
-    fill-opacity="0.7"
-    paint-order="stroke fill"
-  >${escapeXml(detailText)}</text>`
-      : ""
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: "Unknown error" }));
+    throw new Error(error.error || `Render server error: ${response.status}`);
   }
 
-  <!-- Attribution -->
-  <text
-    x="${safeZoneRight}"
-    y="${textBottomY}"
-    text-anchor="end"
-    dominant-baseline="text-after-edge"
-    font-family="${fontFamily}"
-    font-weight="300"
-    font-size="${1.5 * cqw}"
-    letter-spacing="0.02em"
-    fill="${theme.colors.text}"
-    fill-opacity="0.15"
-  >© Mapbox © OpenStreetMap</text>
-</svg>`;
+  return response.json();
+}
+
+async function pollJobStatus(jobId: string): Promise<RenderJobResponse> {
+  const response = await fetch(`${RENDER_SERVER_URL}/status/${jobId}`, {
+    headers: {
+      "x-render-secret": RENDER_SECRET!,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: "Unknown error" }));
+    throw new Error(error.error || `Status check failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+async function waitForCompletion(jobId: string): Promise<string> {
+  for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
+    const status = await pollJobStatus(jobId);
+
+    if (status.status === "completed" && status.imageBase64) {
+      return status.imageBase64;
+    }
+
+    if (status.status === "failed") {
+      throw new Error(status.error || "Render job failed");
+    }
+
+    // Wait before next poll
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+  }
+
+  throw new Error("Render job timed out");
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const body: GeneratePrintRequest = await request.json();
-    const { center, zoom, themeId, cityName, stateName, coordinates, focusPoint, detailLineType } =
-      body;
-
-    // Get theme
-    const theme = (themes as Theme[]).find((t) => t.id === themeId);
-    if (!theme) {
-      return NextResponse.json({ error: "Invalid theme" }, { status: 400 });
-    }
-
-    const MAPBOX_TOKEN = process.env.MAPBOX_ACCESS_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-    if (!MAPBOX_TOKEN) {
-      return NextResponse.json({ error: "Mapbox token not configured" }, { status: 500 });
-    }
-
-    // Get the Mapbox style for this theme
-    const mapboxStyle = MAPBOX_STYLE_MAP[themeId] || "mapbox/dark-v11";
-
-    console.log("[generate-print] Starting Static API capture...");
-    console.log("[generate-print] Theme:", themeId, "Style:", mapboxStyle);
-    console.log("[generate-print] Center:", center, "Zoom:", zoom);
-
-    // Fetch map from Static API
-    // We'll get the maximum size (960x1280 @2x = 1920x2560) and scale up
-    const staticUrl = `https://api.mapbox.com/styles/v1/${mapboxStyle}/static/${center[0]},${center[1]},${zoom},0,0/${STATIC_REQUEST_WIDTH}x${STATIC_REQUEST_HEIGHT}@2x?access_token=${MAPBOX_TOKEN}&logo=false&attribution=false`;
-
-    console.log("[generate-print] Fetching from Static API...");
-
-    const mapResponse = await fetch(staticUrl);
-    if (!mapResponse.ok) {
-      const errorText = await mapResponse.text();
-      console.error("[generate-print] Static API error:", errorText);
+    // Validate environment
+    if (!RENDER_SERVER_URL || !RENDER_SECRET) {
+      console.error("[generate-print] Missing RENDER_SERVER_URL or RENDER_SECRET");
       return NextResponse.json(
-        { error: `Mapbox Static API error: ${mapResponse.status}` },
+        { error: "Render server not configured" },
         { status: 500 }
       );
     }
 
-    const mapBuffer = Buffer.from(await mapResponse.arrayBuffer());
-    console.log("[generate-print] Map fetched, size:", mapBuffer.length);
+    const body: GeneratePrintRequest = await request.json();
+    const {
+      center,
+      zoom,
+      themeId,
+      cityName,
+      stateName,
+      coordinates,
+      focusPoint,
+      detailLineType,
+      paid = true, // Default to paid (no watermark) for now
+    } = body;
 
-    // Scale up to print resolution using Sharp with lanczos3 for quality
-    let processedMap = sharp(mapBuffer).resize(PRINT_WIDTH, PRINT_HEIGHT, {
-      fit: "fill",
-      kernel: "lanczos3",
+    console.log("[generate-print] Submitting job to render server...");
+    console.log("[generate-print] Theme:", themeId, "Center:", center, "Zoom:", zoom);
+
+    // Submit job to render server
+    const { jobId } = await submitRenderJob({
+      lat: center[1],
+      lng: center[0],
+      zoom,
+      themeId,
+      city: cityName,
+      state: stateName,
+      coordinates,
+      paid,
+      focusPoint,
+      detailLineType,
     });
 
-    // Apply color tint to better match our theme colors
-    // For dark themes, we can adjust the tint
-    if (themeId === "obsidian") {
-      // Slightly desaturate and add contrast for obsidian look
-      processedMap = processedMap.modulate({ saturation: 0.8 });
-    } else if (themeId === "copper") {
-      // Add warm copper tint
-      processedMap = processedMap.tint({ r: 180, g: 83, b: 9 }).modulate({ saturation: 0.7 });
-    } else if (themeId === "coastal") {
-      // Add teal/aqua tint
-      processedMap = processedMap.tint({ r: 26, g: 74, b: 82 }).modulate({ saturation: 0.9 });
-    }
+    console.log("[generate-print] Job submitted:", jobId);
 
-    const scaledMap = await processedMap.toBuffer();
-    console.log("[generate-print] Map scaled to print resolution");
+    // Poll for completion
+    const imageBase64 = await waitForCompletion(jobId);
 
-    // Determine detail text
-    const detailText =
-      detailLineType === "address" && focusPoint?.address
-        ? focusPoint.address.split(",")[0].trim()
-        : coordinates;
+    console.log("[generate-print] Job completed, image size:", imageBase64.length);
 
-    // Create SVG text overlay
-    const svgOverlay = createTextOverlaySVG(theme, cityName, stateName, detailText, detailLineType);
-
-    // Composite text overlay onto map
-    const finalImage = await sharp(scaledMap)
-      .composite([
-        {
-          input: Buffer.from(svgOverlay),
-          top: 0,
-          left: 0,
-        },
-      ])
-      .jpeg({ quality: 95 })
-      .toBuffer();
-
-    console.log("[generate-print] Final image generated, size:", finalImage.length);
-
-    // Return as base64 data URL
-    const base64 = finalImage.toString("base64");
-    const dataUrl = `data:image/jpeg;base64,${base64}`;
+    // Return as data URL
+    const dataUrl = `data:image/jpeg;base64,${imageBase64}`;
 
     return NextResponse.json({ imageDataUrl: dataUrl });
   } catch (error) {
@@ -292,5 +165,5 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Vercel function timeout
-export const maxDuration = 60;
+// Vercel function timeout - needs to be long enough for render + polling
+export const maxDuration = 120;

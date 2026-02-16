@@ -48,6 +48,7 @@ interface GeneratePrintRequest {
 
 /**
  * Creates SVG text overlay matching the preview styling
+ * Note: Uses system fonts (Arial/Helvetica) since Sharp can't fetch external fonts
  */
 function createTextOverlaySVG(
   theme: Theme,
@@ -100,77 +101,92 @@ function createTextOverlaySVG(
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&apos;");
 
-  return `<svg width="${PRINT_WIDTH}" height="${PRINT_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <style>
-      @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;600&amp;display=swap');
-      .city-text {
-        font-family: 'Space Grotesk', Arial, sans-serif;
-        font-weight: 600;
-        font-size: ${cityFontSize}px;
-        fill: ${theme.colors.text};
-        fill-opacity: 0.9;
-        letter-spacing: 0.1em;
-      }
-      .state-text {
-        font-family: 'Space Grotesk', Arial, sans-serif;
-        font-weight: 300;
-        font-size: ${3 * cqw}px;
-        fill: ${theme.colors.text};
-        fill-opacity: 0.9;
-        letter-spacing: 0.1em;
-      }
-      .detail-text {
-        font-family: 'Space Grotesk', Arial, sans-serif;
-        font-weight: 300;
-        font-size: ${2.5 * cqw}px;
-        fill: ${theme.colors.text};
-        fill-opacity: 0.7;
-        letter-spacing: 0.1em;
-      }
-      .attr-text {
-        font-family: 'Space Grotesk', Arial, sans-serif;
-        font-weight: 300;
-        font-size: ${1.5 * cqw}px;
-        fill: ${theme.colors.text};
-        fill-opacity: 0.15;
-        letter-spacing: 0.02em;
-      }
-      .halo {
-        stroke: ${theme.colors.bg};
-        stroke-width: ${0.15 * cqw}px;
-        stroke-linejoin: round;
-        paint-order: stroke fill;
-      }
-    </style>
-  </defs>
+  // Font settings - use system fonts that Sharp can render
+  const fontFamily = "Helvetica, Arial, sans-serif";
+  const haloWidth = 0.12 * cqw;
 
-  <!-- City name -->
-  <text x="${textCenterX}" y="${cityY}" text-anchor="middle" dominant-baseline="middle" class="city-text halo">
-    ${escapeXml(spacedCityName)}
-  </text>
+  return `<svg width="${PRINT_WIDTH}" height="${PRINT_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+  <!-- City name with halo -->
+  <text
+    x="${textCenterX}"
+    y="${cityY}"
+    text-anchor="middle"
+    dominant-baseline="middle"
+    font-family="${fontFamily}"
+    font-weight="600"
+    font-size="${cityFontSize}"
+    letter-spacing="0.1em"
+    stroke="${theme.colors.bg}"
+    stroke-width="${haloWidth}"
+    stroke-linejoin="round"
+    fill="${theme.colors.text}"
+    fill-opacity="0.9"
+    paint-order="stroke fill"
+  >${escapeXml(spacedCityName)}</text>
 
   <!-- Decorative line -->
-  <rect x="${textCenterX - 5 * cqw}" y="${lineY}" width="${10 * cqw}" height="2" fill="${theme.colors.text}" fill-opacity="0.9"/>
+  <rect
+    x="${textCenterX - 5 * cqw}"
+    y="${lineY}"
+    width="${10 * cqw}"
+    height="${Math.max(2, cqw * 0.05)}"
+    fill="${theme.colors.text}"
+    fill-opacity="0.9"
+  />
 
-  <!-- State name -->
-  <text x="${textCenterX}" y="${stateY}" text-anchor="middle" dominant-baseline="middle" class="state-text halo">
-    ${escapeXml(stateName.toUpperCase())}
-  </text>
+  <!-- State name with halo -->
+  <text
+    x="${textCenterX}"
+    y="${stateY}"
+    text-anchor="middle"
+    dominant-baseline="middle"
+    font-family="${fontFamily}"
+    font-weight="300"
+    font-size="${3 * cqw}"
+    letter-spacing="0.1em"
+    stroke="${theme.colors.bg}"
+    stroke-width="${haloWidth}"
+    stroke-linejoin="round"
+    fill="${theme.colors.text}"
+    fill-opacity="0.9"
+    paint-order="stroke fill"
+  >${escapeXml(stateName.toUpperCase())}</text>
 
   ${
     detailLineType !== "none"
       ? `<!-- Detail line (coordinates/address) -->
-  <text x="${textCenterX}" y="${detailY}" text-anchor="middle" dominant-baseline="middle" class="detail-text halo">
-    ${escapeXml(detailText)}
-  </text>`
+  <text
+    x="${textCenterX}"
+    y="${detailY}"
+    text-anchor="middle"
+    dominant-baseline="middle"
+    font-family="${fontFamily}"
+    font-weight="300"
+    font-size="${2.5 * cqw}"
+    letter-spacing="0.1em"
+    stroke="${theme.colors.bg}"
+    stroke-width="${haloWidth * 0.8}"
+    stroke-linejoin="round"
+    fill="${theme.colors.text}"
+    fill-opacity="0.7"
+    paint-order="stroke fill"
+  >${escapeXml(detailText)}</text>`
       : ""
   }
 
   <!-- Attribution -->
-  <text x="${safeZoneRight}" y="${textBottomY}" text-anchor="end" dominant-baseline="text-after-edge" class="attr-text">
-    © Mapbox © OpenStreetMap
-  </text>
+  <text
+    x="${safeZoneRight}"
+    y="${textBottomY}"
+    text-anchor="end"
+    dominant-baseline="text-after-edge"
+    font-family="${fontFamily}"
+    font-weight="300"
+    font-size="${1.5 * cqw}"
+    letter-spacing="0.02em"
+    fill="${theme.colors.text}"
+    fill-opacity="0.15"
+  >© Mapbox © OpenStreetMap</text>
 </svg>`;
 }
 

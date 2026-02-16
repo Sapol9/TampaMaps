@@ -1,561 +1,629 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
-import { upload } from "@vercel/blob/client";
+import { useState, useRef, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import themes from "@/data/themes.json";
+import locations from "@/data/locations.json";
 import type { Theme } from "@/lib/mapbox/applyTheme";
-
-// Builder components
-import StepNavigation from "@/components/builder/StepNavigation";
-import StepCity, { type LocationData } from "@/components/builder/StepCity";
-import StepVibe from "@/components/builder/StepVibe";
-import StepFocus, { type FocusPoint } from "@/components/builder/StepFocus";
-import StepBranding from "@/components/builder/StepBranding";
-import StepDetails, { type DetailLineType } from "@/components/builder/StepDetails";
-import StepPreview from "@/components/builder/StepPreview";
 import { type MapPreviewHandle } from "@/components/MapPreview";
-import Cart, { type CartItem } from "@/components/Cart";
 
-// New premium components
-import Hero from "@/components/Hero";
-import Gallery from "@/components/Gallery";
-import ProcessSteps from "@/components/ProcessSteps";
-import ProductSpecs from "@/components/ProductSpecs";
-import Features from "@/components/Features";
-import Footer from "@/components/Footer";
-import ValueSidebar from "@/components/ValueSidebar";
-
-// Lazy load MapPreview for better Core Web Vitals
+// Lazy load MapPreview
 const MapPreview = dynamic(() => import("@/components/MapPreview"), {
   ssr: false,
   loading: () => (
-    <div className="aspect-[3/4] w-full rounded-lg bg-neutral-100 dark:bg-neutral-900 animate-pulse flex items-center justify-center">
-      <div className="text-center">
-        <div className="w-8 h-8 border-2 border-neutral-300 border-t-neutral-600 rounded-full animate-spin mx-auto mb-2" />
-        <p className="text-sm text-neutral-500">Loading map...</p>
-      </div>
+    <div className="aspect-[3/4] w-full rounded-xl bg-neutral-900 animate-pulse flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-neutral-700 border-t-neutral-400 rounded-full animate-spin" />
     </div>
   ),
 });
 
-// Default theme for preview before user selects one
-const defaultTheme = (themes as Theme[])[0];
+interface LocationData {
+  id: string;
+  name: string;
+  displayName: string;
+  state?: string;
+  country?: string;
+  lat: number;
+  lng: number;
+  zoom: number;
+}
 
-export default function Home() {
-  // Hero state
-  const [showBuilder, setShowBuilder] = useState(false);
+// Print sizes
+const PRINT_SIZES = [
+  { id: "12x16", label: '12" × 16"' },
+  { id: "16x20", label: '16" × 20"' },
+  { id: "18x24", label: '18" × 24"' },
+];
 
-  // Builder step state (6 steps total)
-  const [currentStep, setCurrentStep] = useState(1);
-  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+// Example cities for hero
+const HERO_EXAMPLES = [
+  { city: "New York", state: "NY", theme: "obsidian", lat: 40.7128, lng: -74.006 },
+  { city: "Paris", state: "France", theme: "parchment", lat: 48.8566, lng: 2.3522 },
+  { city: "Tokyo", state: "Japan", theme: "cobalt", lat: 35.6762, lng: 139.6503 },
+  { city: "Tampa", state: "FL", theme: "coastal", lat: 27.9506, lng: -82.4572 },
+];
 
-  // Step 6: Final preview state
-  const [previewThumbnail, setPreviewThumbnail] = useState<string | null>(null);
-  const [isCapturingForPreview, setIsCapturingForPreview] = useState(false);
+const presetLocations: LocationData[] = Object.values(locations);
 
-  // Step 1: City selection
+function HomeContent() {
+  const searchParams = useSearchParams();
+  const isPaid = searchParams.get("paid") === "true";
+  const paymentType = searchParams.get("type");
+
+  // State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<LocationData[]>(presetLocations);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<LocationData | null>(null);
+  const [selectedTheme, setSelectedTheme] = useState<Theme>((themes as Theme[])[0]);
+  const [selectedSize, setSelectedSize] = useState(PRINT_SIZES[2]);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [showSuccessBanner, setShowSuccessBanner] = useState(isPaid);
 
-  // Step 2: Vibe/Theme selection
-  const [selectedMood, setSelectedMood] = useState<string | null>(null);
-  const [selectedTheme, setSelectedTheme] = useState<Theme | null>(null);
-
-  // Step 3: Focus point
-  const [focusPoint, setFocusPoint] = useState<FocusPoint | null>(null);
-
-  // Step 4: Primary branding
-  const [primaryText, setPrimaryText] = useState("");
-
-  // Step 5: Detail line
-  const [detailLineType, setDetailLineType] = useState<DetailLineType>("coordinates");
-
-  // Map preview state
-  const [showSafeZone, setShowSafeZone] = useState(true);
-
-  // Cart state
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [isCartOpen, setIsCartOpen] = useState(false);
-
-  // Map preview ref for capturing thumbnails
   const mapPreviewRef = useRef<MapPreviewHandle>(null);
+  const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const toolSectionRef = useRef<HTMLDivElement>(null);
 
-  // Rendering overlay state
-  const [isRendering, setIsRendering] = useState(false);
-  const renderingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Trigger rendering overlay with cleanup
-  const triggerRenderingOverlay = useCallback(() => {
-    // Clear any existing timeout
-    if (renderingTimeoutRef.current) {
-      clearTimeout(renderingTimeoutRef.current);
-    }
-    setIsRendering(true);
-  }, []);
-
-  const handleRenderComplete = useCallback(() => {
-    setIsRendering(false);
-  }, []);
-
-  // Navigation handlers
-  const goToStep = (step: number) => {
-    setCurrentStep(step);
-    // Scroll to top when navigating steps
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const completeStep = (step: number) => {
-    if (!completedSteps.includes(step)) {
-      setCompletedSteps([...completedSteps, step]);
-    }
-  };
-
-  // Handle location selection with rendering overlay
-  const handleLocationSelect = useCallback((location: LocationData | null) => {
-    setSelectedLocation(location);
-    if (location) {
-      // Trigger rendering overlay after a short delay for fly-to animation
-      setTimeout(() => {
-        triggerRenderingOverlay();
-      }, 500);
-    }
-  }, [triggerRenderingOverlay]);
-
-  // Handle theme selection with rendering overlay
-  const handleThemeSelect = useCallback((theme: Theme | null) => {
-    setSelectedTheme(theme);
-    if (theme && selectedLocation) {
-      triggerRenderingOverlay();
-    }
-  }, [triggerRenderingOverlay, selectedLocation]);
-
-  // Scroll to top helper
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  // Step completion handlers
-  const handleCityNext = () => {
-    if (selectedLocation) {
-      setPrimaryText(selectedLocation.name);
-      completeStep(1);
-      setCurrentStep(2);
-      scrollToTop();
-    }
-  };
-
-  const handleVibeNext = () => {
-    if (selectedTheme) {
-      completeStep(2);
-      setCurrentStep(3);
-      scrollToTop();
-    }
-  };
-
-  const handleFocusNext = () => {
-    completeStep(3);
-    setCurrentStep(4);
-    scrollToTop();
-  };
-
-  const handleBrandingNext = () => {
-    if (primaryText.trim()) {
-      completeStep(4);
-      setCurrentStep(5);
-      scrollToTop();
-    }
-  };
-
-  const handleDetailsNext = async () => {
-    completeStep(5);
-    scrollToTop();
-    // Capture thumbnail for the final preview step
-    setIsCapturingForPreview(true);
-    try {
-      await mapPreviewRef.current?.waitForIdle();
-      // Additional delay to ensure all tiles are rendered
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      const thumbnail = await mapPreviewRef.current?.captureImage();
-      setPreviewThumbnail(thumbnail ?? null);
-    } finally {
-      setIsCapturingForPreview(false);
-    }
-    setCurrentStep(6);
-  };
-
-  const handlePreviewComplete = () => {
-    completeStep(6);
-  };
-
-  const handleAddToCart = async () => {
-    if (!selectedLocation || !selectedTheme) return;
-
-    // Trigger rendering overlay to show the user we're capturing
-    triggerRenderingOverlay();
-
-    // Wait for map to be fully idle (all tiles loaded and rendered)
-    await mapPreviewRef.current?.waitForIdle();
-
-    // Small delay to let rendering overlay fade in visually
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // Stop the rendering overlay before capturing so it's not in the image
-    setIsRendering(false);
-
-    // Give a moment for the overlay to disappear from DOM
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    // Capture map thumbnail (waits for idle internally as well)
-    const thumbnail = await mapPreviewRef.current?.captureImage() ?? undefined;
-
-    const newItem: CartItem = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-      cityName: selectedLocation.name,
-      stateName: selectedLocation.state || selectedLocation.country || "",
-      theme: selectedTheme,
-      primaryText: primaryText || selectedLocation.name,
-      detailLineType,
-      focusAddress: focusPoint?.address,
-      lat: focusPoint?.lat ?? selectedLocation.lat,
-      lng: focusPoint?.lng ?? selectedLocation.lng,
-      price: 94.0,
-      thumbnail,
-    };
-
-    setCartItems((prev) => [...prev, newItem]);
-    setIsCartOpen(true);
-  };
-
-  const handleRemoveFromCart = (id: string) => {
-    setCartItems((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const handleCheckout = async () => {
-    if (cartItems.length === 0) return;
-
-    const item = cartItems[0]; // For now, checkout the first item
-
-    try {
-      // Step 1: Convert data URL to Blob for client-side upload
-      console.log("📤 Uploading image directly to Vercel Blob...");
-
-      if (!item.thumbnail) {
-        alert("No image captured. Please try again.");
-        return;
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
       }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-      // Convert data URL to Blob
-      const response = await fetch(item.thumbnail);
-      const imageBlob = await response.blob();
-      const filename = `mapmarked-${item.cityName.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.jpg`;
+  // Clear URL params after success
+  useEffect(() => {
+    if (isPaid) {
+      const timeout = setTimeout(() => {
+        window.history.replaceState({}, "", window.location.pathname);
+      }, 5000);
+      return () => clearTimeout(timeout);
+    }
+  }, [isPaid]);
 
-      // Client-side upload directly to Vercel Blob (bypasses API payload limits)
-      const blob = await upload(filename, imageBlob, {
-        access: "public",
-        handleUploadUrl: "/api/upload-image",
-      });
+  // Search handler
+  const searchLocation = async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults(presetLocations);
+      return;
+    }
 
-      console.log("✅ Image uploaded:", blob.url);
+    setIsSearching(true);
+    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
-      // Step 2: Create checkout session with image URL
-      console.log("💳 Creating checkout session...");
-      const checkoutResponse = await fetch("/api/checkout", {
+    try {
+      const presetMatches = presetLocations.filter(
+        (loc) =>
+          loc.name.toLowerCase().includes(query.toLowerCase()) ||
+          loc.displayName.toLowerCase().includes(query.toLowerCase())
+      );
+
+      const response = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&types=place,locality,neighborhood,address&limit=5`
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const mapboxResults: LocationData[] = data.features.map(
+          (feature: { id: string; place_name: string; text: string; center: [number, number]; context?: Array<{ id: string; text: string }> }) => {
+            const stateContext = feature.context?.find((c) => c.id.startsWith("region"));
+            const countryContext = feature.context?.find((c) => c.id.startsWith("country"));
+            return {
+              id: feature.id,
+              name: feature.text,
+              displayName: feature.place_name.split(",")[0],
+              state: stateContext?.text,
+              country: countryContext?.text,
+              lat: feature.center[1],
+              lng: feature.center[0],
+              zoom: 12,
+            };
+          }
+        );
+
+        const combined = [...presetMatches];
+        mapboxResults.forEach((result) => {
+          if (!combined.some((loc) => loc.name === result.name)) {
+            combined.push(result);
+          }
+        });
+        setSearchResults(combined.slice(0, 8));
+      } else {
+        setSearchResults(presetMatches);
+      }
+    } catch (error) {
+      console.error("Geocoding error:", error);
+      setSearchResults(presetLocations);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setShowDropdown(true);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(() => searchLocation(value), 300);
+  };
+
+  const handleSelectLocation = (location: LocationData) => {
+    setSelectedLocation(location);
+    setSearchQuery(location.displayName);
+    setShowDropdown(false);
+  };
+
+  // Download handler
+  const handleDownload = useCallback(async (paid: boolean) => {
+    if (!selectedLocation) return;
+    setIsDownloading(true);
+
+    try {
+      const response = await fetch("/api/generate-print", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          cityName: item.cityName,
-          stateName: item.stateName,
-          themeName: item.theme.name,
-          imageUrl: blob.url, // Vercel Blob URL (not base64)
+          center: [selectedLocation.lng, selectedLocation.lat],
+          zoom: selectedLocation.zoom,
+          themeId: selectedTheme.id,
+          cityName: selectedLocation.name,
+          stateName: selectedLocation.state || selectedLocation.country || "",
+          coordinates: `${Math.abs(selectedLocation.lat).toFixed(4)}° ${selectedLocation.lat >= 0 ? "N" : "S"} / ${Math.abs(selectedLocation.lng).toFixed(4)}° ${selectedLocation.lng >= 0 ? "E" : "W"}`,
+          detailLineType: "coordinates",
+          paid,
         }),
       });
 
-      const { url, error } = await checkoutResponse.json();
+      if (!response.ok) throw new Error("Failed to generate");
 
-      if (error) {
-        console.error("Checkout error:", error);
-        alert("Failed to start checkout. Please try again.");
-        return;
-      }
-
-      // Redirect to Stripe Checkout
-      if (url) {
-        window.location.href = url;
-      }
-    } catch (err) {
-      console.error("Checkout error:", err);
-      alert("Failed to start checkout. Please try again.");
+      const data = await response.json();
+      const link = document.createElement("a");
+      link.download = `mapmarked-${selectedLocation.name.toLowerCase().replace(/\s+/g, "-")}-${selectedTheme.id}-${selectedSize.id}.jpg`;
+      link.href = data.imageDataUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("Download error:", error);
+      alert("Failed to generate. Please try again.");
+    } finally {
+      setIsDownloading(false);
     }
-  };
+  }, [selectedLocation, selectedTheme, selectedSize]);
 
-  const handleReviewItem = (item: CartItem) => {
-    // Load the item's settings back into the builder for review
-    setSelectedLocation({
-      id: item.id,
-      name: item.cityName,
-      displayName: `${item.cityName}, ${item.stateName}`,
-      state: item.stateName,
-      country: "",
-      lat: item.lat,
-      lng: item.lng,
-      zoom: 12,
-    });
-    setSelectedTheme(item.theme);
-    setPrimaryText(item.primaryText);
-    setDetailLineType(item.detailLineType);
-    if (item.focusAddress) {
-      setFocusPoint({
-        lat: item.lat,
-        lng: item.lng,
-        address: item.focusAddress,
+  // Checkout handler
+  const handleCheckout = async (priceType: "single" | "subscription") => {
+    try {
+      const response = await fetch("/api/create-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ priceType, returnUrl: window.location.href }),
       });
-    } else {
-      setFocusPoint(null);
+      if (!response.ok) throw new Error("Failed to create checkout");
+      const { url } = await response.json();
+      if (url) window.location.href = url;
+    } catch (error) {
+      console.error("Checkout error:", error);
+      alert("Failed to start checkout.");
     }
-    // Set the thumbnail from the cart item for the preview
-    setPreviewThumbnail(item.thumbnail ?? null);
-    // Go to last step and close cart
-    setCurrentStep(6);
-    setCompletedSteps([1, 2, 3, 4, 5, 6]);
-    setIsCartOpen(false);
-    setShowBuilder(true);
   };
 
-  const handleGetStarted = () => {
-    setShowBuilder(true);
+  const scrollToTool = () => {
+    toolSectionRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Get current map center
   const mapCenter: [number, number] = selectedLocation
     ? [selectedLocation.lng, selectedLocation.lat]
-    : [-82.4572, 27.9506]; // Default Tampa
-
+    : [-74.006, 40.7128];
   const mapZoom = selectedLocation?.zoom ?? 12;
 
-  // Determine if we should show the map preview alongside steps
-  // Show map as soon as city is selected, using default theme if none selected yet
-  const showMapPreview = selectedLocation;
-  const previewTheme = selectedTheme || defaultTheme;
-  const isDesignComplete = completedSteps.includes(6);
-
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <header className="border-b border-neutral-200 dark:border-neutral-800 sticky top-0 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-md z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 relative flex items-center justify-center">
-          {/* Centered Logo */}
-          <a href="/" className="font-semibold text-neutral-900 dark:text-white text-lg tracking-wide">
-            MapMarked
-          </a>
-          {/* Cart Button - Absolute Right */}
-          <button
-            onClick={() => setIsCartOpen(true)}
-            className="absolute right-4 sm:right-6 lg:right-8 p-2 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-lg transition-colors"
-          >
-            <svg
-              className="w-5 h-5 text-neutral-600 dark:text-neutral-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
-              />
+    <div className="min-h-screen bg-[#0a0a0a] text-white">
+      {/* Success Banner */}
+      {showSuccessBanner && (
+        <div className="bg-emerald-600 text-white px-4 py-3 text-center relative">
+          <p className="font-medium">
+            {paymentType === "subscription"
+              ? "Welcome! You now have unlimited watermark-free downloads."
+              : "Payment successful! Download your watermark-free map below."}
+          </p>
+          <button onClick={() => setShowSuccessBanner(false)} className="absolute right-4 top-1/2 -translate-y-1/2">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
-            {cartItems.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-medium rounded-full flex items-center justify-center">
-                {cartItems.length}
-              </span>
-            )}
           </button>
         </div>
-      </header>
+      )}
 
-      <main className="flex-1">
-        {/* Hero Section - shown when builder is not active */}
-        {!showBuilder && (
-          <>
-            <Hero onGetStarted={handleGetStarted} />
-            <Gallery />
-            <ProductSpecs />
-            <ProcessSteps />
-            <Features />
-          </>
-        )}
+      {/* Hero Section */}
+      <section className="min-h-screen flex flex-col justify-center px-4 sm:px-6 lg:px-8 py-16">
+        <div className="max-w-6xl mx-auto w-full">
+          <div className="text-center mb-12">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
+              Create Stunning Map Art
+              <br />
+              <span className="text-neutral-400">in Seconds</span>
+            </h1>
+            <p className="text-lg sm:text-xl text-neutral-400 max-w-2xl mx-auto mb-8">
+              Print-ready custom maps of any place on Earth. Perfect for wall art, gifts, Etsy shops, and closing gifts.
+            </p>
+            <button
+              onClick={scrollToTool}
+              className="px-8 py-4 bg-white text-black font-semibold rounded-full hover:bg-neutral-200 transition-colors"
+            >
+              Start Creating
+            </button>
+          </div>
 
-        {/* Map Builder Section */}
-        {showBuilder && (
-          <section id="map-builder" className="py-8">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              {/* Section Header */}
-              <div className="text-center mb-8">
-                <h2 className="text-2xl sm:text-3xl font-light text-neutral-900 dark:text-white">
-                  Design Your <span className="font-semibold">Masterpiece</span>
-                </h2>
-                <p className="text-neutral-600 dark:text-neutral-400 mt-2">
-                  6 simple steps to create your custom architectural map art
-                </p>
+          {/* Example Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
+            {HERO_EXAMPLES.map((example) => {
+              const theme = (themes as Theme[]).find((t) => t.id === example.theme) || (themes as Theme[])[0];
+              return (
+                <div
+                  key={example.city}
+                  className="aspect-[3/4] rounded-xl overflow-hidden relative group cursor-pointer"
+                  style={{ backgroundColor: theme.colors.bg }}
+                  onClick={() => {
+                    setSelectedLocation({
+                      id: example.city,
+                      name: example.city,
+                      displayName: example.city,
+                      state: example.state,
+                      lat: example.lat,
+                      lng: example.lng,
+                      zoom: 12,
+                    });
+                    setSelectedTheme(theme);
+                    setSearchQuery(example.city);
+                    scrollToTool();
+                  }}
+                >
+                  {/* Placeholder map visualization */}
+                  <div className="absolute inset-0 opacity-30">
+                    <svg className="w-full h-full" viewBox="0 0 100 133">
+                      {/* Simplified road network pattern */}
+                      <g stroke={theme.colors.text} strokeWidth="0.5" fill="none" opacity="0.6">
+                        <line x1="20" y1="0" x2="20" y2="133" />
+                        <line x1="50" y1="0" x2="50" y2="133" />
+                        <line x1="80" y1="0" x2="80" y2="133" />
+                        <line x1="0" y1="30" x2="100" y2="30" />
+                        <line x1="0" y1="66" x2="100" y2="66" />
+                        <line x1="0" y1="100" x2="100" y2="100" />
+                        <line x1="10" y1="15" x2="90" y2="15" />
+                        <line x1="35" y1="0" x2="35" y2="50" />
+                        <line x1="65" y1="80" x2="65" y2="133" />
+                      </g>
+                    </svg>
+                  </div>
+                  {/* City label */}
+                  <div className="absolute bottom-4 left-0 right-0 text-center">
+                    <p
+                      className="text-xs font-semibold tracking-[0.2em] uppercase"
+                      style={{ color: theme.colors.text }}
+                    >
+                      {example.city.split("").join(" ")}
+                    </p>
+                    <p
+                      className="text-[10px] tracking-wider uppercase mt-1 opacity-70"
+                      style={{ color: theme.colors.text }}
+                    >
+                      {example.state}
+                    </p>
+                  </div>
+                  {/* Hover overlay */}
+                  <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <span className="text-sm font-medium" style={{ color: theme.colors.text }}>Try this style</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Tool Section */}
+      <section ref={toolSectionRef} className="py-16 px-4 sm:px-6 lg:px-8 border-t border-neutral-800">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+            {/* Controls */}
+            <div className="space-y-6">
+              {/* Search */}
+              <div>
+                <label className="block text-sm font-medium text-neutral-400 mb-2">
+                  City or Address
+                </label>
+                <div className="relative" ref={dropdownRef}>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    onFocus={() => setShowDropdown(true)}
+                    placeholder="Search any location..."
+                    className="w-full px-4 py-3.5 pl-12 bg-neutral-900 border border-neutral-800 rounded-xl text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-600 transition-colors"
+                  />
+                  <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  {isSearching && (
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                      <div className="w-4 h-4 border-2 border-neutral-700 border-t-neutral-400 rounded-full animate-spin" />
+                    </div>
+                  )}
+
+                  {showDropdown && searchResults.length > 0 && (
+                    <div className="absolute z-50 w-full mt-2 bg-neutral-900 border border-neutral-800 rounded-xl shadow-2xl overflow-hidden max-h-72 overflow-y-auto">
+                      {searchResults.map((location) => (
+                        <button
+                          key={location.id}
+                          onClick={() => handleSelectLocation(location)}
+                          className="w-full px-4 py-3 text-left hover:bg-neutral-800 transition-colors flex items-center gap-3"
+                        >
+                          <svg className="w-4 h-4 text-neutral-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          </svg>
+                          <span className="text-white">
+                            {location.displayName}
+                            {location.state && <span className="text-neutral-500">, {location.state}</span>}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Step Navigation */}
-              <StepNavigation
-                currentStep={currentStep}
-                completedSteps={completedSteps}
-                onStepClick={goToStep}
-              />
-
-              {/* Main content area - 3 column on desktop */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                {/* Left: Step content */}
-                <div className="lg:col-span-5 order-2 lg:order-1">
-                  {currentStep === 1 && (
-                    <StepCity
-                      selectedLocation={selectedLocation}
-                      onLocationSelect={handleLocationSelect}
-                      onNext={handleCityNext}
-                    />
-                  )}
-
-                  {currentStep === 2 && (
-                    <StepVibe
-                      selectedMood={selectedMood}
-                      selectedTheme={selectedTheme}
-                      onMoodSelect={setSelectedMood}
-                      onThemeSelect={handleThemeSelect}
-                      onNext={handleVibeNext}
-                      onBack={() => setCurrentStep(1)}
-                    />
-                  )}
-
-                  {currentStep === 3 && selectedLocation && (
-                    <StepFocus
-                      centerLat={selectedLocation.lat}
-                      centerLng={selectedLocation.lng}
-                      focusPoint={focusPoint}
-                      onFocusPointChange={setFocusPoint}
-                      onNext={handleFocusNext}
-                      onBack={() => setCurrentStep(2)}
-                    />
-                  )}
-
-                  {currentStep === 4 && selectedLocation && (
-                    <StepBranding
-                      cityName={selectedLocation.name}
-                      primaryText={primaryText}
-                      onPrimaryTextChange={setPrimaryText}
-                      onNext={handleBrandingNext}
-                      onBack={() => setCurrentStep(3)}
-                    />
-                  )}
-
-                  {currentStep === 5 && selectedLocation && (
-                    <StepDetails
-                      lat={focusPoint?.lat ?? selectedLocation.lat}
-                      lng={focusPoint?.lng ?? selectedLocation.lng}
-                      address={focusPoint?.address}
-                      primaryText={primaryText || selectedLocation.name}
-                      detailLineType={detailLineType}
-                      onDetailLineTypeChange={setDetailLineType}
-                      onComplete={handleDetailsNext}
-                      onBack={() => setCurrentStep(4)}
-                      isLoading={isCapturingForPreview}
-                    />
-                  )}
-
-                  {currentStep === 6 && selectedLocation && selectedTheme && (
-                    <StepPreview
-                      mapThumbnail={previewThumbnail}
-                      theme={selectedTheme}
-                      cityName={primaryText || selectedLocation.name}
-                      stateName={selectedLocation.state || selectedLocation.country || ""}
-                      onAddToCart={async () => {
-                        handlePreviewComplete();
-                        await handleAddToCart();
-                      }}
-                      onBack={() => setCurrentStep(5)}
-                      isCapturing={isCapturingForPreview}
-                    />
-                  )}
-                </div>
-
-                {/* Center: Map preview */}
-                <div className="lg:col-span-4 order-1 lg:order-2">
-                  <div className="lg:sticky lg:top-24">
-                    {showMapPreview ? (
-                      <MapPreview
-                        ref={mapPreviewRef}
-                        theme={previewTheme}
-                        center={mapCenter}
-                        zoom={mapZoom}
-                        cityName={primaryText || selectedLocation.name}
-                        stateName={selectedLocation.state || selectedLocation.country || ""}
-                        focusPoint={focusPoint}
-                        detailLineType={detailLineType}
-                        showSafeZone={showSafeZone}
-                        onToggleSafeZone={() => setShowSafeZone(!showSafeZone)}
-                        isRendering={isRendering}
-                        onRenderComplete={handleRenderComplete}
-                      />
-                    ) : (
-                      <div className="aspect-[3/4] w-full rounded-lg bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
-                        <div className="text-center px-8">
-                          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center">
-                            <svg
-                              className="w-8 h-8 text-neutral-400"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={1.5}
-                                d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
-                              />
-                            </svg>
-                          </div>
-                          <p className="text-neutral-600 dark:text-neutral-400 font-medium">
-                            Select a city to preview your map
-                          </p>
-                        </div>
+              {/* Style Picker */}
+              <div>
+                <label className="block text-sm font-medium text-neutral-400 mb-3">Style</label>
+                <div className="grid grid-cols-5 gap-2">
+                  {(themes as Theme[]).map((theme) => (
+                    <button
+                      key={theme.id}
+                      onClick={() => setSelectedTheme(theme)}
+                      className={`aspect-[3/4] rounded-lg overflow-hidden transition-all relative group ${
+                        selectedTheme.id === theme.id
+                          ? "ring-2 ring-white ring-offset-2 ring-offset-[#0a0a0a]"
+                          : "hover:scale-105"
+                      }`}
+                      style={{ backgroundColor: theme.colors.bg }}
+                    >
+                      {/* Mini road pattern */}
+                      <svg className="absolute inset-0 w-full h-full opacity-40" viewBox="0 0 30 40">
+                        <g stroke={theme.colors.text} strokeWidth="0.5" fill="none">
+                          <line x1="10" y1="0" x2="10" y2="40" />
+                          <line x1="20" y1="0" x2="20" y2="40" />
+                          <line x1="0" y1="15" x2="30" y2="15" />
+                          <line x1="0" y1="30" x2="30" y2="30" />
+                        </g>
+                      </svg>
+                      <div className="absolute bottom-1 left-0 right-0 text-center">
+                        <span className="text-[6px] uppercase tracking-wider font-medium" style={{ color: theme.colors.text }}>
+                          {theme.id}
+                        </span>
                       </div>
-                    )}
-                  </div>
+                    </button>
+                  ))}
                 </div>
+                <p className="mt-2 text-sm text-neutral-500">{selectedTheme.name}</p>
+              </div>
 
-                {/* Right: Value Sidebar */}
-                <div className="lg:col-span-3 order-3">
-                  <div className="lg:sticky lg:top-24">
-                    <ValueSidebar
-                      price={94.0}
-                      onAddToCart={handleAddToCart}
-                      isComplete={isDesignComplete}
-                    />
-                  </div>
-                </div>
+              {/* Size Dropdown */}
+              <div>
+                <label className="block text-sm font-medium text-neutral-400 mb-2">Size</label>
+                <select
+                  value={selectedSize.id}
+                  onChange={(e) => {
+                    const size = PRINT_SIZES.find((s) => s.id === e.target.value);
+                    if (size) setSelectedSize(size);
+                  }}
+                  className="w-full px-4 py-3.5 bg-neutral-900 border border-neutral-800 rounded-xl text-white focus:outline-none focus:border-neutral-600 transition-colors cursor-pointer"
+                >
+                  {PRINT_SIZES.map((size) => (
+                    <option key={size.id} value={size.id}>{size.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Download Button */}
+              <div className="pt-4">
+                <button
+                  onClick={() => handleDownload(isPaid)}
+                  disabled={!selectedLocation || isDownloading}
+                  className={`w-full py-4 rounded-xl font-semibold text-lg transition-all flex items-center justify-center gap-3 ${
+                    selectedLocation && !isDownloading
+                      ? isPaid
+                        ? "bg-emerald-600 hover:bg-emerald-500 text-white"
+                        : "bg-white hover:bg-neutral-100 text-black"
+                      : "bg-neutral-800 text-neutral-500 cursor-not-allowed"
+                  }`}
+                >
+                  {isDownloading ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Download Print-Ready Map
+                    </>
+                  )}
+                </button>
+
+                {!isPaid && (
+                  <p className="text-center text-sm text-neutral-500 mt-3">
+                    Free downloads include watermark.{" "}
+                    <button onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })} className="text-white underline">
+                      Remove watermark
+                    </button>
+                  </p>
+                )}
               </div>
             </div>
-          </section>
-        )}
-      </main>
+
+            {/* Map Preview */}
+            <div className="lg:sticky lg:top-8 lg:self-start">
+              {selectedLocation ? (
+                <MapPreview
+                  ref={mapPreviewRef}
+                  theme={selectedTheme}
+                  center={mapCenter}
+                  zoom={mapZoom}
+                  cityName={selectedLocation.name}
+                  stateName={selectedLocation.state || selectedLocation.country || ""}
+                  detailLineType="coordinates"
+                  showSafeZone={false}
+                />
+              ) : (
+                <div
+                  className="aspect-[3/4] w-full rounded-xl flex items-center justify-center border border-neutral-800"
+                  style={{ backgroundColor: selectedTheme.colors.bg }}
+                >
+                  <div className="text-center px-8">
+                    <svg className="w-12 h-12 mx-auto mb-4 opacity-20" style={{ color: selectedTheme.colors.text }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                    </svg>
+                    <p className="text-sm opacity-40" style={{ color: selectedTheme.colors.text }}>
+                      Search for a location to preview
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Section */}
+      <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8 border-t border-neutral-800">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-3xl font-bold text-center mb-4">Simple Pricing</h2>
+          <p className="text-neutral-400 text-center mb-12">Remove the watermark and get clean, print-ready files</p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Free */}
+            <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
+              <h3 className="text-lg font-semibold mb-2">Free</h3>
+              <p className="text-3xl font-bold mb-1">$0</p>
+              <p className="text-sm text-neutral-500 mb-6">Watermarked</p>
+              <ul className="space-y-3 text-sm text-neutral-400 mb-6">
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  Unlimited previews
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  300 DPI resolution
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  <span className="text-neutral-600">Includes watermark</span>
+                </li>
+              </ul>
+              <button
+                onClick={() => selectedLocation && handleDownload(false)}
+                disabled={!selectedLocation}
+                className="w-full py-3 rounded-xl font-medium border border-neutral-700 text-neutral-300 hover:bg-neutral-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Download Free
+              </button>
+            </div>
+
+            {/* Single */}
+            <div className="bg-neutral-900 border-2 border-white rounded-2xl p-6 relative">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-white text-black text-xs font-semibold rounded-full">
+                Most Popular
+              </div>
+              <h3 className="text-lg font-semibold mb-2">Single Download</h3>
+              <p className="text-3xl font-bold mb-1">$5</p>
+              <p className="text-sm text-neutral-500 mb-6">One-time</p>
+              <ul className="space-y-3 text-sm text-neutral-400 mb-6">
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  No watermark
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  300 DPI print-ready
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  Commercial use OK
+                </li>
+              </ul>
+              <button
+                onClick={() => handleCheckout("single")}
+                className="w-full py-3 rounded-xl font-semibold bg-white text-black hover:bg-neutral-200 transition-colors"
+              >
+                Buy for $5
+              </button>
+            </div>
+
+            {/* Unlimited */}
+            <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
+              <h3 className="text-lg font-semibold mb-2">Unlimited</h3>
+              <p className="text-3xl font-bold mb-1">$10<span className="text-lg font-normal text-neutral-500">/mo</span></p>
+              <p className="text-sm text-neutral-500 mb-6">Cancel anytime</p>
+              <ul className="space-y-3 text-sm text-neutral-400 mb-6">
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  Unlimited downloads
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  All styles included
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  Perfect for Etsy sellers
+                </li>
+              </ul>
+              <button
+                onClick={() => handleCheckout("subscription")}
+                className="w-full py-3 rounded-xl font-medium border border-neutral-700 text-white hover:bg-neutral-800 transition-colors"
+              >
+                Subscribe
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Footer */}
-      <Footer />
-
-      {/* Cart */}
-      <Cart
-        items={cartItems}
-        isOpen={isCartOpen}
-        onClose={() => setIsCartOpen(false)}
-        onRemoveItem={handleRemoveFromCart}
-        onCheckout={handleCheckout}
-        onReviewItem={handleReviewItem}
-      />
+      <footer className="border-t border-neutral-800 py-8 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-neutral-500">
+            <p>
+              Print your map anywhere — we recommend{" "}
+              <a href="https://www.printful.com/a/mapmarked" target="_blank" rel="noopener noreferrer" className="text-white hover:underline">
+                Printful
+              </a>
+            </p>
+            <p>© {new Date().getFullYear()} MapMarked. Map data © Mapbox © OpenStreetMap.</p>
+          </div>
+        </div>
+      </footer>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-neutral-700 border-t-neutral-400 rounded-full animate-spin" />
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
   );
 }

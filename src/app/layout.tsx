@@ -1,17 +1,11 @@
 import type { Metadata } from "next";
-import { Inter, Playfair_Display, Space_Grotesk } from "next/font/google";
+import { Inter, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { SITE } from "@/config/site";
 
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
-});
-
-const playfair = Playfair_Display({
-  variable: "--font-playfair",
-  subsets: ["latin"],
-  weight: ["400", "700"],
 });
 
 const spaceGrotesk = Space_Grotesk({
@@ -21,32 +15,32 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "MapMarked | Premium Architectural Map Art",
+  title: "MapMarked | Create Stunning Map Art in Seconds",
   description:
-    "Transform any location into museum-quality architectural art. 300 DPI precision vector maps on 18×24 gallery canvas. Free shipping on custom map prints.",
+    "Print-ready custom maps of any place on Earth. Perfect for wall art, gifts, Etsy shops, and closing gifts. 300 DPI resolution.",
   keywords: [
-    "architectural map art",
-    "custom map canvas",
-    "museum quality prints",
-    "vector map art",
-    "personalized wall art",
-    "gallery wrap canvas",
-    "minimalist map poster",
+    "map art generator",
+    "custom map prints",
+    "print-ready maps",
     "city map art",
-    "architectural prints",
+    "wall art generator",
+    "Etsy map prints",
+    "real estate closing gifts",
+    "personalized map art",
+    "minimalist map poster",
   ],
   openGraph: {
-    title: "MapMarked | Premium Architectural Map Art",
+    title: "MapMarked | Create Stunning Map Art in Seconds",
     description:
-      "Transform any location into museum-quality architectural art. 300 DPI precision on 18×24 gallery canvas.",
+      "Print-ready custom maps of any place on Earth. Perfect for wall art, gifts, and Etsy shops.",
     siteName: SITE.name,
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "MapMarked | Premium Architectural Map Art",
+    title: "MapMarked | Create Stunning Map Art in Seconds",
     description:
-      "Transform any location into museum-quality architectural art. 300 DPI precision on 18×24 gallery canvas.",
+      "Print-ready custom maps of any place on Earth. Perfect for wall art, gifts, and Etsy shops.",
   },
   robots: {
     index: true,
@@ -62,7 +56,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${inter.variable} ${playfair.variable} ${spaceGrotesk.variable} font-sans antialiased min-h-screen bg-white dark:bg-neutral-950`}
+        className={`${inter.variable} ${spaceGrotesk.variable} font-sans antialiased min-h-screen bg-[#0a0a0a]`}
       >
         {children}
       </body>

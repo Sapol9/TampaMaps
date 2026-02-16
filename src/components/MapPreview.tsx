@@ -695,7 +695,7 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
               </div>
             </div>
             <p className="text-sm font-light tracking-wide text-white/90">
-              Generating your print-quality canvas...
+              Rendering your museum-quality canvas at 300 DPI...
             </p>
           </div>
         )}

@@ -150,10 +150,14 @@ export async function POST(request: NextRequest) {
     // Poll for completion
     const imageBase64 = await waitForCompletion(jobId);
 
-    console.log("[generate-print] Job completed, image size:", imageBase64.length);
+    const base64Length = imageBase64.length;
+    const estimatedMB = (base64Length / 1024 / 1024).toFixed(2);
+    console.log(`[generate-print] Job completed, base64 length: ${base64Length} chars (~${estimatedMB}MB)`);
 
     // Return as data URL
     const dataUrl = `data:image/jpeg;base64,${imageBase64}`;
+
+    console.log(`[generate-print] Returning data URL, total length: ${dataUrl.length}`);
 
     return NextResponse.json({ imageDataUrl: dataUrl });
   } catch (error) {

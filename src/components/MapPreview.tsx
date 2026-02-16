@@ -384,7 +384,15 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
         throw new Error(error.error || "Failed to generate print image");
       }
 
-      const { imageDataUrl } = await response.json();
+      const data = await response.json();
+      const { imageDataUrl } = data;
+
+      console.log("[MapPreview] Capture complete, data URL length:", imageDataUrl?.length || 0);
+
+      if (!imageDataUrl) {
+        console.error("[MapPreview] No imageDataUrl in response:", data);
+        throw new Error("No image data received");
+      }
 
       if (debug) {
         console.log("[MapPreview Debug] ✅ Server-side capture complete");

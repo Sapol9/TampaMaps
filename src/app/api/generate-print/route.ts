@@ -82,7 +82,13 @@ export async function POST(request: NextRequest) {
       );
 
       browser = await puppeteer.launch({
-        args: chromium.args,
+        args: [
+          ...chromium.args,
+          "--enable-webgl",
+          "--enable-webgl2",
+          "--ignore-gpu-blocklist",
+          "--use-gl=swiftshader",
+        ],
         defaultViewport: {
           width: PRINT_WIDTH,
           height: PRINT_HEIGHT,
@@ -147,8 +153,8 @@ export async function POST(request: NextRequest) {
 
     // Navigate to the render page
     await page.goto(renderUrl.toString(), {
-      waitUntil: "networkidle0",
-      timeout: 60000,
+      waitUntil: "networkidle2",
+      timeout: 90000,
     });
 
     console.log("[generate-print] Page loaded, waiting for map...");
@@ -156,7 +162,7 @@ export async function POST(request: NextRequest) {
     // Wait for the map to be ready (data-print-ready attribute)
     await page.waitForFunction(
       () => document.body.getAttribute("data-print-ready") === "true",
-      { timeout: 45000 }
+      { timeout: 90000 }
     );
 
     console.log("[generate-print] Map ready, capturing screenshot...");
@@ -205,5 +211,5 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Increase function timeout for Vercel
-export const maxDuration = 60;
+// Increase function timeout for Vercel (Pro plan allows up to 300s)
+export const maxDuration = 120;

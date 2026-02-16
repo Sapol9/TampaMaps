@@ -427,21 +427,49 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
         touchPitch: false,
       });
 
-      // Wait for the print map to fully load
+      // Wait for the print map to fully load with robust tile checking
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
-          reject(new Error("Print map load timeout"));
+          console.warn("[MapPreview] Print map load timeout - proceeding anyway");
+          resolve(); // Don't reject, try to capture anyway
         }, 30000);
-
-        printMap.once("idle", () => {
-          clearTimeout(timeout);
-          // Extra delay for all tiles to render
-          setTimeout(resolve, 500);
-        });
 
         printMap.once("error", (e) => {
           clearTimeout(timeout);
           reject(e.error);
+        });
+
+        // First wait for initial load
+        printMap.once("load", () => {
+          if (debug) {
+            console.log("[MapPreview Debug] Print map 'load' event fired");
+          }
+
+          // Then wait for idle with tile verification
+          const waitForTiles = () => {
+            if (printMap.areTilesLoaded() && printMap.loaded() && !printMap.isMoving()) {
+              if (debug) {
+                console.log("[MapPreview Debug] All tiles loaded, waiting for render...");
+              }
+              // Give WebGL extra time to finish rendering
+              setTimeout(() => {
+                clearTimeout(timeout);
+                resolve();
+              }, 1500); // Increased delay for tile rendering
+            } else {
+              if (debug) {
+                console.log("[MapPreview Debug] Tiles not ready, waiting for idle...");
+              }
+              // Wait for next idle event
+              printMap.once("idle", () => {
+                // Check again after idle
+                setTimeout(waitForTiles, 200);
+              });
+            }
+          };
+
+          // Start checking after initial load
+          printMap.once("idle", waitForTiles);
         });
       });
 

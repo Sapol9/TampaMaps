@@ -24,7 +24,7 @@ const getStatusMessages = (themeName?: string): string[] => {
     "The Obsidian": "Applying Obsidian Vector Layers...",
     "The Cobalt": "Rendering Blueprint Heritage Vectors...",
     "The Parchment": "Tracing Architectural Draft Lines...",
-    "The Emerald": "Processing Verdant Geometry Paths...",
+    "The Coastal": "Mapping Shoreline Serenity Paths...",
     "The Copper": "Forging Industrial Copper Routes...",
   };
 

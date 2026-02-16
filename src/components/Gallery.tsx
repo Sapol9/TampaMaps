@@ -9,10 +9,10 @@ import type { Theme } from "@/lib/mapbox/applyTheme";
 // Run `npm run generate-gallery` to regenerate
 const galleryItems = [
   { city: "Manhattan", state: "New York", themeId: "obsidian", image: "/gallery/manhattan-obsidian.jpg" },
-  { city: "San Francisco", state: "California", themeId: "cobalt", image: "/gallery/san-francisco-cobalt.jpg" },
-  { city: "Tampa", state: "Florida", themeId: "parchment", image: "/gallery/tampa-parchment.jpg" },
-  { city: "Austin", state: "Texas", themeId: "emerald", image: "/gallery/austin-emerald.jpg" },
-  { city: "Chicago", state: "Illinois", themeId: "copper", image: "/gallery/chicago-copper.jpg" },
+  { city: "Chicago", state: "Illinois", themeId: "cobalt", image: "/gallery/chicago-cobalt.jpg" },
+  { city: "Charleston", state: "South Carolina", themeId: "parchment", image: "/gallery/charleston-parchment.jpg" },
+  { city: "Tampa", state: "Florida", themeId: "coastal", image: "/gallery/tampa-coastal.jpg" },
+  { city: "Austin", state: "Texas", themeId: "copper", image: "/gallery/austin-copper.jpg" },
 ];
 
 function MapPreviewCard({

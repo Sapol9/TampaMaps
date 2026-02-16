@@ -24,10 +24,10 @@ const projectRoot = path.join(__dirname, "..");
 // Gallery items to capture
 const galleryItems = [
   { city: "Manhattan", themeId: "obsidian" },
-  { city: "San Francisco", themeId: "cobalt" },
-  { city: "Tampa", themeId: "parchment" },
-  { city: "Austin", themeId: "emerald" },
-  { city: "Chicago", themeId: "copper" },
+  { city: "Chicago", themeId: "cobalt" },
+  { city: "Charleston", themeId: "parchment" },
+  { city: "Tampa", themeId: "coastal" },
+  { city: "Austin", themeId: "copper" },
 ];
 
 const BASE_URL = process.env.BASE_URL || "http://localhost:3000";

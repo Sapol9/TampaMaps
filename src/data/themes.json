@@ -66,25 +66,25 @@
     }
   },
   {
-    "id": "emerald",
-    "name": "The Emerald",
+    "id": "coastal",
+    "name": "The Coastal",
     "seriesNumber": "04",
-    "subtitle": "Verdant Geometry",
-    "description": "Natural, sophisticated. Inspired by landscape architecture with forest green and pale mint roads.",
-    "vibe": "Natural • Sophisticated • Botanical",
+    "subtitle": "Shoreline Serenity",
+    "description": "Calm, inviting. Soft teals and aqua blues meet sandy warm tones for a tranquil shoreline aesthetic.",
+    "vibe": "Serene • Coastal • Tranquil",
     "colors": {
-      "bg": "#162B21",
-      "text": "#D1FAE5",
-      "gradient_color": "#162B21",
-      "water": "#0E1F18",
-      "parks": "#162B21",
-      "road_motorway": "#D1FAE5",
-      "road_primary": "#D1FAE5",
-      "road_secondary": "#D1FAE5",
-      "road_tertiary": "#D1FAE5",
-      "road_residential": "#D1FAE5",
-      "road_default": "#D1FAE5",
-      "road_opacity": 0.75
+      "bg": "#1A4A52",
+      "text": "#F5DEB3",
+      "gradient_color": "#1A4A52",
+      "water": "#0F363D",
+      "parks": "#1A4A52",
+      "road_motorway": "#F5DEB3",
+      "road_primary": "#F5DEB3",
+      "road_secondary": "#F5DEB3",
+      "road_tertiary": "#F5DEB3",
+      "road_residential": "#F5DEB3",
+      "road_default": "#F5DEB3",
+      "road_opacity": 0.8
     }
   },
   {

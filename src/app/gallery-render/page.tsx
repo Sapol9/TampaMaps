@@ -6,13 +6,13 @@ import MapPreview from "@/components/MapPreview";
 import themes from "@/data/themes.json";
 import type { Theme } from "@/lib/mapbox/applyTheme";
 
-// Gallery items configuration
+// Gallery items configuration - zoom 12 for more pulled-back city views
 const galleryConfig: Record<string, { lat: number; lng: number; state: string; zoom: number }> = {
-  manhattan: { lat: 40.7484, lng: -73.9857, state: "New York", zoom: 13 },
-  "san francisco": { lat: 37.7749, lng: -122.4194, state: "California", zoom: 13 },
-  tampa: { lat: 27.9506, lng: -82.4572, state: "Florida", zoom: 13 },
-  austin: { lat: 30.2672, lng: -97.7431, state: "Texas", zoom: 13 },
-  chicago: { lat: 41.8781, lng: -87.6298, state: "Illinois", zoom: 13 },
+  manhattan: { lat: 40.7580, lng: -73.9855, state: "New York", zoom: 12 },
+  chicago: { lat: 41.8781, lng: -87.6298, state: "Illinois", zoom: 12 },
+  charleston: { lat: 32.7765, lng: -79.9311, state: "South Carolina", zoom: 12 },
+  tampa: { lat: 27.9506, lng: -82.4572, state: "Florida", zoom: 12 },
+  austin: { lat: 30.2672, lng: -97.7431, state: "Texas", zoom: 12 },
 };
 
 function GalleryRenderContent() {

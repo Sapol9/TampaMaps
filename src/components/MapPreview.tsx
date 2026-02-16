@@ -8,6 +8,7 @@ import { createCustomStyle } from "@/lib/mapbox/createStyle";
 import type { Theme } from "@/lib/mapbox/applyTheme";
 import SafeZoneOverlay from "./SafeZoneOverlay";
 import RenderingOverlay from "./RenderingOverlay";
+import { toJpeg } from "html-to-image";
 
 export interface MapPreviewHandle {
   captureImage: (debug?: boolean) => Promise<string | null>;
@@ -92,6 +93,7 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
   const [error, setError] = useState<string | null>(null);
   const [isManualMode, setIsManualMode] = useState(false);
   const [hasMovedInManualMode, setHasMovedInManualMode] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
   const currentThemeRef = useRef<string>(theme.id);
   const lockedCenter = useRef<[number, number]>(center);
 
@@ -341,10 +343,14 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
     });
   }, []);
 
-  // Capture the full preview at print resolution using an off-screen map
-  // Creates a hidden map at 5400x7200px for true 300 DPI quality on 18"×24" canvas
+  // Capture the full preview at print resolution using html-to-image
+  // Creates an off-screen clone of the preview at 5400x7200px for true 300 DPI quality
+  // This approach captures the exact browser-rendered output, eliminating Canvas API mismatches
   const captureImage = useCallback(async (debug: boolean = DEBUG_PRINT_MODE): Promise<string | null> => {
     if (!previewContainer.current || !map.current) return null;
+
+    // Show loading state
+    setIsCapturing(true);
 
     // Fixed print dimensions (300 DPI for 18"×24")
     const PRINT_WIDTH = 5400;
@@ -363,26 +369,53 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
     const zoomAdjustment = Math.log2(PRINT_WIDTH / previewRect.width);
     const adjustedZoom = currentZoom + zoomAdjustment;
 
+    // cqw = 1% of container width (for converting CSS container query units to pixels)
+    const cqw = PRINT_WIDTH / 100;
+
     if (debug) {
-      console.log("[MapPreview Debug] Creating off-screen map at", PRINT_WIDTH, "x", PRINT_HEIGHT);
+      console.log("[MapPreview Debug] Creating off-screen capture at", PRINT_WIDTH, "x", PRINT_HEIGHT);
       console.log("[MapPreview Debug] Preview size:", previewRect.width, "x", previewRect.height);
       console.log("[MapPreview Debug] Map center:", currentCenter.lng, currentCenter.lat);
       console.log("[MapPreview Debug] Original zoom:", currentZoom, "Adjusted zoom:", adjustedZoom.toFixed(2));
     }
 
     try {
-      // Create hidden container for high-res map
-      const hiddenContainer = document.createElement("div");
-      hiddenContainer.style.position = "absolute";
-      hiddenContainer.style.left = "-9999px";
-      hiddenContainer.style.top = "-9999px";
-      hiddenContainer.style.width = `${PRINT_WIDTH}px`;
-      hiddenContainer.style.height = `${PRINT_HEIGHT}px`;
-      document.body.appendChild(hiddenContainer);
+      // Ensure fonts are loaded before rendering
+      await document.fonts.ready;
+      try {
+        await document.fonts.load("600 100px 'Space Grotesk'");
+        await document.fonts.load("300 100px 'Space Grotesk'");
+      } catch {
+        console.warn("[MapPreview] Font loading failed, using fallback");
+      }
 
-      // Create high-resolution off-screen map with adjusted zoom
+      // Create hidden container for the complete print preview
+      const printContainer = document.createElement("div");
+      printContainer.style.cssText = `
+        position: absolute;
+        left: -99999px;
+        top: -99999px;
+        width: ${PRINT_WIDTH}px;
+        height: ${PRINT_HEIGHT}px;
+        overflow: hidden;
+        background-color: ${theme.colors.bg};
+      `;
+      document.body.appendChild(printContainer);
+
+      // Create map container inside print container
+      const mapDiv = document.createElement("div");
+      mapDiv.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+      `;
+      printContainer.appendChild(mapDiv);
+
+      // Create high-resolution off-screen map
       const printMap = new mapboxgl.Map({
-        container: hiddenContainer,
+        container: mapDiv,
         style: currentStyle,
         center: currentCenter,
         zoom: adjustedZoom,
@@ -412,270 +445,199 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
         });
       });
 
-      if (debug) {
-        const printCanvas = printMap.getCanvas();
-        console.log("[MapPreview Debug] Print map canvas size:", printCanvas.width, "x", printCanvas.height);
-      }
-
-      // Create composite canvas at print resolution
-      const compositeCanvas = document.createElement("canvas");
-      compositeCanvas.width = PRINT_WIDTH;
-      compositeCanvas.height = PRINT_HEIGHT;
-      const ctx = compositeCanvas.getContext("2d");
-      if (!ctx) {
-        printMap.remove();
-        hiddenContainer.remove();
-        return null;
-      }
-
-      // 1. Draw the high-res map canvas
-      const printMapCanvas = printMap.getCanvas();
-      ctx.drawImage(printMapCanvas, 0, 0, PRINT_WIDTH, PRINT_HEIGHT);
-
-      // 1b. Draw marker if focus point exists
+      // Add marker if focus point exists
       if (focusPoint) {
-        // Convert focus point coordinates to pixel position on print canvas
-        const markerPoint = printMap.project([focusPoint.lng, focusPoint.lat]);
-        const markerX = markerPoint.x;
-        const markerY = markerPoint.y;
-
-        // Draw minimalist marker (matching preview style)
-        const markerSize = PRINT_WIDTH * 0.012; // ~65px at 5400px width
-        const innerDotSize = markerSize * 0.3;
-
-        ctx.save();
-        // Outer circle (stroke only)
-        ctx.beginPath();
-        ctx.arc(markerX, markerY, markerSize, 0, Math.PI * 2);
-        ctx.strokeStyle = theme.colors.text;
-        ctx.lineWidth = markerSize * 0.15;
-        ctx.stroke();
-
-        // Inner dot (filled)
-        ctx.beginPath();
-        ctx.arc(markerX, markerY, innerDotSize, 0, Math.PI * 2);
-        ctx.fillStyle = theme.colors.text;
-        ctx.fill();
-        ctx.restore();
-
-        if (debug) {
-          console.log("[MapPreview Debug] Marker drawn at:", markerX, markerY);
-        }
+        const markerSize = PRINT_WIDTH * 0.012;
+        const el = document.createElement("div");
+        el.style.cssText = `
+          width: ${markerSize * 2}px;
+          height: ${markerSize * 2}px;
+          border-radius: 50%;
+          border: ${markerSize * 0.15}px solid ${theme.colors.text};
+          background-color: transparent;
+          box-sizing: border-box;
+          position: relative;
+        `;
+        const innerDot = document.createElement("div");
+        innerDot.style.cssText = `
+          width: ${markerSize * 0.6}px;
+          height: ${markerSize * 0.6}px;
+          border-radius: 50%;
+          background-color: ${theme.colors.text};
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+        `;
+        el.appendChild(innerDot);
+        new mapboxgl.Marker({ element: el })
+          .setLngLat([focusPoint.lng, focusPoint.lat])
+          .addTo(printMap);
       }
 
-      // Clean up print map
-      printMap.remove();
-      hiddenContainer.remove();
-
-      // 2. Draw text overlay directly on canvas at print resolution
-      // Matches the preview layout exactly (same structure, sizes, and positions)
-
-      // CRITICAL: Wait for Space Grotesk font to be loaded before drawing
-      // If font isn't loaded, canvas falls back to 10px default font
-      await document.fonts.ready;
-      try {
-        await document.fonts.load("600 100px 'Space Grotesk'");
-        await document.fonts.load("300 100px 'Space Grotesk'");
-      } catch {
-        console.warn("[MapPreview] Font loading failed, using fallback");
-      }
-
-      // Safe zone margins (matching preview percentages)
-      const SAFE_MARGIN_H = PRINT_WIDTH * 0.0833; // 8.33%
-      const SAFE_MARGIN_V = PRINT_HEIGHT * 0.0625; // 6.25%
-
-      // cqw = 1% of container width (matching CSS container query units)
-      const cqw = PRINT_WIDTH / 100;
-
-      // Font family - use the CSS variable font stack
-      const fontFamily = "Space Grotesk, sans-serif";
-
-      // City name: add space between each letter (matching preview's spacedCityName)
-      const spacedCity = cityName.toUpperCase().split("").join(" ");
-
-      // City name font size (dynamic based on length, matching preview logic)
-      // These values match the CSS: fontSize in cqw units
-      let cityFontSize: number;
+      // Dynamic city font size (matching preview logic)
+      let cityFontSizeCqw: number;
       if (cityName.length > 14) {
-        cityFontSize = 4.5 * cqw;
+        cityFontSizeCqw = 4.5;
       } else if (cityName.length > 10) {
-        cityFontSize = 5.5 * cqw;
+        cityFontSizeCqw = 5.5;
       } else if (cityName.length > 6) {
-        cityFontSize = 6.5 * cqw;
+        cityFontSizeCqw = 6.5;
       } else {
-        cityFontSize = 8 * cqw;
+        cityFontSizeCqw = 8;
       }
 
-      if (debug) {
-        console.log("[MapPreview Debug] Font check - loaded fonts:",
-          Array.from(document.fonts).filter(f => f.family.includes('Space')).map(f => `${f.weight} ${f.family}`));
-        console.log("[MapPreview Debug] cqw =", cqw, "cityFontSize =", cityFontSize);
-      }
+      // Create text overlay - exact same structure as preview but with pixel values
+      const textOverlay = document.createElement("div");
+      textOverlay.style.cssText = `
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: ${SAFE_ZONE_VERTICAL_PERCENT}%;
+        padding-left: ${SAFE_ZONE_HORIZONTAL_PERCENT}%;
+        padding-right: ${SAFE_ZONE_HORIZONTAL_PERCENT}%;
+        pointer-events: none;
+        z-index: 20;
+      `;
 
-      // Helper: Draw text with halo effect (matching preview's textShadow)
-      const drawTextWithHalo = (
-        text: string,
-        x: number,
-        y: number,
-        fontSize: number,
-        fontWeight: string,
-        letterSpacing: number,
-        opacity: number
-      ) => {
-        ctx.save();
-        ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
-        ctx.textAlign = "left"; // We manually center
-        ctx.textBaseline = "top";
+      const textContent = document.createElement("div");
+      textContent.style.cssText = `
+        text-align: center;
+        text-shadow: 0 0 ${4 * cqw / 54}px ${theme.colors.bg},
+                     0 0 ${4 * cqw / 54}px ${theme.colors.bg},
+                     0 0 ${4 * cqw / 54}px ${theme.colors.bg},
+                     0 0 ${4 * cqw / 54}px ${theme.colors.bg};
+        padding-top: ${2 * cqw}px;
+        padding-bottom: ${2 * cqw}px;
+      `;
 
-        // Draw halo (4 passes with blur, matching CSS textShadow)
-        ctx.fillStyle = theme.colors.bg;
-        const haloBlur = Math.max(8, fontSize * 0.08);
-        for (let i = 0; i < 4; i++) {
-          ctx.shadowColor = theme.colors.bg;
-          ctx.shadowBlur = haloBlur;
-          drawSpacedTextInner(ctx, text, x, y, letterSpacing);
-        }
+      // City name
+      const cityEl = document.createElement("h2");
+      cityEl.textContent = spacedCityName;
+      cityEl.style.cssText = `
+        font-family: 'Space Grotesk', sans-serif;
+        font-weight: 600;
+        font-size: ${cityFontSizeCqw * cqw}px;
+        color: ${theme.colors.text};
+        opacity: 0.9;
+        letter-spacing: 0.1em;
+        margin: 0;
+        margin-bottom: ${1.5 * cqw}px;
+        line-height: 1;
+      `;
+      textContent.appendChild(cityEl);
 
-        // Draw main text
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = theme.colors.text;
-        ctx.globalAlpha = opacity;
-        drawSpacedTextInner(ctx, text, x, y, letterSpacing);
+      // Decorative line
+      const lineEl = document.createElement("div");
+      lineEl.style.cssText = `
+        width: ${10 * cqw}px;
+        height: 1px;
+        background-color: ${theme.colors.text};
+        opacity: 0.9;
+        margin: 0 auto ${1.5 * cqw}px auto;
+        box-shadow: 0 0 4px ${theme.colors.bg};
+      `;
+      textContent.appendChild(lineEl);
 
-        ctx.restore();
-      };
+      // State name
+      const stateEl = document.createElement("p");
+      stateEl.textContent = stateName.toUpperCase();
+      stateEl.style.cssText = `
+        font-family: 'Space Grotesk', sans-serif;
+        font-weight: 300;
+        font-size: ${3 * cqw}px;
+        color: ${theme.colors.text};
+        opacity: 0.9;
+        letter-spacing: 0.1em;
+        margin: 0;
+        margin-bottom: ${0.5 * cqw}px;
+        text-transform: uppercase;
+      `;
+      textContent.appendChild(stateEl);
 
-      // Helper: Draw text with letter spacing, centered at x
-      const drawSpacedTextInner = (
-        context: CanvasRenderingContext2D,
-        text: string,
-        centerX: number,
-        y: number,
-        spacing: number
-      ) => {
-        // Measure total width with spacing
-        const chars = text.split("");
-        let totalWidth = 0;
-        chars.forEach((char) => {
-          totalWidth += context.measureText(char).width + spacing;
-        });
-        totalWidth -= spacing; // No spacing after last char
-
-        if (debug) {
-          console.log(`[MapPreview Debug] Drawing "${text.substring(0, 10)}..." totalWidth=${totalWidth.toFixed(0)}`);
-        }
-
-        // Draw each character, starting from left edge to center the text
-        let currentX = centerX - totalWidth / 2;
-        chars.forEach((char) => {
-          context.fillText(char, currentX, y);
-          currentX += context.measureText(char).width + spacing;
-        });
-      };
-
-      // Calculate text block position
-      // Preview: text block positioned at bottom: SAFE_ZONE_VERTICAL_PERCENT%
-      // with paddingTop: 2cqw, paddingBottom: 2cqw
-      const textBlockBottom = PRINT_HEIGHT - SAFE_MARGIN_V;
-      const paddingBottom = 2 * cqw;
-
-      // Work from bottom up, matching preview margins exactly:
-      // - Detail line (if shown)
-      // - State name (marginBottom: 0.5cqw)
-      // - Decorative line (marginBottom: 1.5cqw)
-      // - City name (marginBottom: 1.5cqw)
-
-      let currentY = textBlockBottom - paddingBottom;
-
-      // Detail line (coordinates or address) - fontSize: 2.5cqw, opacity: 0.7
+      // Detail line (coordinates or address)
       if (detailLineType !== "none") {
-        const detailFontSize = 2.5 * cqw;
         const detailText = detailLineType === "address" && focusPoint?.address
           ? focusPoint.address.split(",")[0].trim()
           : formattedCoords;
-        currentY -= detailFontSize; // Move up by font height
-        drawTextWithHalo(detailText, PRINT_WIDTH / 2, currentY, detailFontSize, "300", detailFontSize * 0.1, 0.7);
+        const detailEl = document.createElement("p");
+        detailEl.textContent = detailText;
+        detailEl.style.cssText = `
+          font-family: 'Space Grotesk', sans-serif;
+          font-weight: 300;
+          font-size: ${2.5 * cqw}px;
+          color: ${theme.colors.text};
+          opacity: 0.7;
+          letter-spacing: 0.1em;
+          margin: 0;
+        `;
+        textContent.appendChild(detailEl);
       }
 
-      // State name - marginBottom: 0.5cqw, fontSize: 3cqw, opacity: 0.9
-      const stateFontSize = 3 * cqw;
-      currentY -= 0.5 * cqw; // marginBottom of detail (or gap if no detail)
-      currentY -= stateFontSize;
-      drawTextWithHalo(stateName.toUpperCase(), PRINT_WIDTH / 2, currentY, stateFontSize, "300", stateFontSize * 0.1, 0.9);
+      textOverlay.appendChild(textContent);
+      printContainer.appendChild(textOverlay);
 
-      // Decorative line - marginBottom: 1.5cqw, width: 10cqw, height: 1px
-      const lineWidth = 10 * cqw;
-      currentY -= 1.5 * cqw; // marginBottom of state
-      const lineY = currentY;
-      ctx.save();
-      // Halo for line (matching boxShadow: 0 0 4px)
-      ctx.strokeStyle = theme.colors.bg;
-      ctx.lineWidth = 8 * (PRINT_WIDTH / 400);
-      ctx.shadowColor = theme.colors.bg;
-      ctx.shadowBlur = 4 * (PRINT_WIDTH / 400);
-      ctx.beginPath();
-      ctx.moveTo(PRINT_WIDTH / 2 - lineWidth / 2, lineY);
-      ctx.lineTo(PRINT_WIDTH / 2 + lineWidth / 2, lineY);
-      ctx.stroke();
-      // Main line
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = theme.colors.text;
-      ctx.globalAlpha = 0.9;
-      ctx.lineWidth = Math.max(1, PRINT_HEIGHT / 7200); // 1px at print scale
-      ctx.beginPath();
-      ctx.moveTo(PRINT_WIDTH / 2 - lineWidth / 2, lineY);
-      ctx.lineTo(PRINT_WIDTH / 2 + lineWidth / 2, lineY);
-      ctx.stroke();
-      ctx.restore();
-
-      // City name - marginBottom: 1.5cqw, fontSize: dynamic, opacity: 0.9
-      currentY -= 1.5 * cqw; // marginBottom of line
-      currentY -= cityFontSize;
-      // Use spacedCity (with actual spaces between letters) + letter-spacing: 0.1em
-      drawTextWithHalo(spacedCity, PRINT_WIDTH / 2, currentY, cityFontSize, "600", cityFontSize * 0.1, 0.9);
-
-      // Attribution (subtle, bottom-right corner inside safe zone)
-      ctx.save();
-      ctx.font = `300 ${1.5 * cqw}px ${fontFamily}`;
-      ctx.textAlign = "right";
-      ctx.textBaseline = "bottom";
-      ctx.fillStyle = theme.colors.text;
-      ctx.globalAlpha = 0.15;
-      ctx.fillText("© Mapbox © OpenStreetMap", PRINT_WIDTH - SAFE_MARGIN_H, PRINT_HEIGHT - SAFE_MARGIN_V);
-      ctx.restore();
+      // Attribution (bottom-right, subtle)
+      const attribution = document.createElement("div");
+      attribution.style.cssText = `
+        position: absolute;
+        bottom: ${SAFE_ZONE_VERTICAL_PERCENT}%;
+        right: ${SAFE_ZONE_HORIZONTAL_PERCENT}%;
+        z-index: 50;
+        pointer-events: none;
+      `;
+      const attrText = document.createElement("span");
+      attrText.textContent = "© Mapbox © OpenStreetMap";
+      attrText.style.cssText = `
+        font-family: 'Space Grotesk', sans-serif;
+        font-weight: 300;
+        font-size: ${1.5 * cqw}px;
+        color: ${theme.colors.text};
+        opacity: 0.15;
+        letter-spacing: 0.02em;
+      `;
+      attribution.appendChild(attrText);
+      printContainer.appendChild(attribution);
 
       if (debug) {
-        console.log("[MapPreview Debug] Text overlay rendered directly on canvas");
-        console.log("[MapPreview Debug] City font size:", cityFontSize, "px");
-        console.log("[MapPreview Debug] Text block bottom:", textBlockBottom);
+        console.log("[MapPreview Debug] Off-screen preview built, capturing with html-to-image");
       }
 
-      // Log final output dimensions
-      if (debug) {
-        console.log("[MapPreview Debug] ✅ Final output dimensions:", compositeCanvas.width, "x", compositeCanvas.height);
-        console.log("[MapPreview Debug] Expected: 5400 x 7200");
-        console.log("[MapPreview Debug] Match:", compositeCanvas.width === 5400 && compositeCanvas.height === 7200 ? "✅ YES" : "❌ NO");
-      }
+      // Capture with html-to-image
+      const dataUrl = await toJpeg(printContainer, {
+        quality: 0.95,
+        width: PRINT_WIDTH,
+        height: PRINT_HEIGHT,
+        pixelRatio: 1, // We're already at print resolution
+        cacheBust: true,
+        skipFonts: false,
+        fontEmbedCSS: '', // Let it embed fonts automatically
+      });
 
-      const dataUrl = compositeCanvas.toDataURL("image/jpeg", 0.95);
+      // Clean up
+      printMap.remove();
+      printContainer.remove();
 
-      // In debug mode, trigger download of the print-ready image
       if (debug) {
+        console.log("[MapPreview Debug] ✅ Capture complete");
+        // Download for inspection
         const link = document.createElement("a");
         link.download = `mapmarked-print-${Date.now()}.jpg`;
         link.href = dataUrl;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        console.log("[MapPreview Debug] 📥 Print-ready image downloaded:", link.download);
+        console.log("[MapPreview Debug] 📥 Print-ready image downloaded");
       }
 
+      setIsCapturing(false);
       return dataUrl;
     } catch (err) {
       console.error("Failed to capture image:", err);
+      setIsCapturing(false);
       return null;
     }
-  }, [theme]);
+  }, [theme, cityName, stateName, focusPoint, detailLineType, formattedCoords, spacedCityName]);
 
   // Expose methods via ref
   useImperativeHandle(ref, () => ({
@@ -942,6 +904,33 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
 
         {/* Safe zone overlay - fixed portrait */}
         <SafeZoneOverlay visible={showSafeZone} />
+
+        {/* Capture loading overlay */}
+        {isCapturing && (
+          <div className="absolute inset-0 z-40 flex flex-col items-center justify-center backdrop-blur-md bg-black/50">
+            {/* Spinner */}
+            <div className="relative w-12 h-12 mb-4">
+              <div className="absolute inset-0 border-2 border-white/20 rounded-full" />
+              <div className="absolute inset-0 animate-spin">
+                <svg viewBox="0 0 48 48" className="w-full h-full">
+                  <circle
+                    cx="24"
+                    cy="24"
+                    r="22"
+                    fill="none"
+                    stroke="white"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeDasharray="35 105"
+                  />
+                </svg>
+              </div>
+            </div>
+            <p className="text-sm font-light tracking-wide text-white/90">
+              Generating your print-quality canvas...
+            </p>
+          </div>
+        )}
 
         {/* High-resolution rendering overlay */}
         <RenderingOverlay

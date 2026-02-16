@@ -390,15 +390,20 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
       }
 
       // Create hidden container for the complete print preview
+      // Use fixed positioning with opacity:0 instead of off-screen positioning
+      // This ensures WebGL actually renders tiles (browsers optimize out off-screen content)
       const printContainer = document.createElement("div");
       printContainer.style.cssText = `
-        position: absolute;
-        left: -99999px;
-        top: -99999px;
+        position: fixed;
+        left: 0;
+        top: 0;
         width: ${PRINT_WIDTH}px;
         height: ${PRINT_HEIGHT}px;
         overflow: hidden;
         background-color: ${theme.colors.bg};
+        opacity: 0;
+        pointer-events: none;
+        z-index: -9999;
       `;
       document.body.appendChild(printContainer);
 

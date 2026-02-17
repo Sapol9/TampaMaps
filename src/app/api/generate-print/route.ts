@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyPayment } from "@/lib/paymentVerification";
 import { checkRateLimit, getClientIp, rateLimiters, RateLimitError } from "@/lib/rateLimit";
+import {
+  sanitizeText,
+  validateCoordinates,
+  validateZoom,
+  sanitizeThemeId,
+  validateDetailLineType,
+  validateFocusPoint,
+} from "@/lib/sanitize";
 
 /**
  * Proxy to the external MapMarked Render Server
@@ -16,25 +24,12 @@ import { checkRateLimit, getClientIp, rateLimiters, RateLimitError } from "@/lib
 const RENDER_SERVER_URL = process.env.RENDER_SERVER_URL;
 const RENDER_SECRET = process.env.RENDER_SECRET;
 
+// Valid theme IDs from themes.json
+const VALID_THEME_IDS = ["obsidian", "cobalt", "parchment", "coastal", "copper"];
+
 // Polling configuration
 const POLL_INTERVAL_MS = 2000;
 const MAX_POLL_ATTEMPTS = 45; // 90 seconds max
-
-interface GeneratePrintRequest {
-  center: [number, number]; // [lng, lat]
-  zoom: number;
-  themeId: string;
-  cityName: string;
-  stateName: string;
-  coordinates: string;
-  focusPoint?: {
-    lat: number;
-    lng: number;
-    address?: string;
-  };
-  detailLineType: "coordinates" | "address" | "none";
-  stripeSessionId?: string; // For payment verification - replaces trusted `paid` flag
-}
 
 interface RenderJobResponse {
   jobId: string;
@@ -135,7 +130,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body: GeneratePrintRequest = await request.json();
+    const body = await request.json();
     const {
       center,
       zoom,
@@ -147,6 +142,45 @@ export async function POST(request: NextRequest) {
       detailLineType,
       stripeSessionId,
     } = body;
+
+    // SECURITY: Validate and sanitize all inputs
+    if (!validateCoordinates(center)) {
+      console.warn("[generate-print] Invalid coordinates:", center);
+      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    }
+
+    if (!validateZoom(zoom)) {
+      console.warn("[generate-print] Invalid zoom:", zoom);
+      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    }
+
+    const validThemeId = sanitizeThemeId(themeId, VALID_THEME_IDS);
+    if (!validThemeId) {
+      console.warn("[generate-print] Invalid themeId:", themeId);
+      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    }
+
+    if (!validateDetailLineType(detailLineType)) {
+      console.warn("[generate-print] Invalid detailLineType:", detailLineType);
+      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    }
+
+    if (!validateFocusPoint(focusPoint)) {
+      console.warn("[generate-print] Invalid focusPoint:", focusPoint);
+      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    }
+
+    // Sanitize text fields
+    const sanitizedCityName = sanitizeText(cityName, 50);
+    const sanitizedStateName = sanitizeText(stateName, 50);
+    const sanitizedCoordinates = sanitizeText(coordinates, 80);
+    const sanitizedFocusPoint = focusPoint
+      ? {
+          lat: focusPoint.lat,
+          lng: focusPoint.lng,
+          address: focusPoint.address ? sanitizeText(focusPoint.address, 200) : undefined,
+        }
+      : undefined;
 
     // SECURITY: Verify payment server-side via Stripe API
     // Never trust client-provided `paid` flags
@@ -160,19 +194,19 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("[generate-print] Submitting job to render server...");
-    console.log("[generate-print] Theme:", themeId, "Center:", center, "Zoom:", zoom, "Paid:", paid);
+    console.log("[generate-print] Theme:", validThemeId, "Center:", center, "Zoom:", zoom, "Paid:", paid);
 
-    // Submit job to render server
+    // Submit job to render server with sanitized inputs
     const { jobId } = await submitRenderJob({
       lat: center[1],
       lng: center[0],
       zoom,
-      themeId,
-      city: cityName,
-      state: stateName,
-      coordinates,
+      themeId: validThemeId,
+      city: sanitizedCityName,
+      state: sanitizedStateName,
+      coordinates: sanitizedCoordinates,
       paid,
-      focusPoint,
+      focusPoint: sanitizedFocusPoint,
       detailLineType,
     });
 

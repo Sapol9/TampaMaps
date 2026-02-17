@@ -16,6 +16,12 @@ function validateReturnUrl(returnUrl: string | undefined, baseUrl: string): stri
     return null;
   }
 
+  // Validate max length to prevent abuse
+  if (typeof returnUrl !== "string" || returnUrl.length > 500) {
+    console.warn(`[create-checkout] Blocked oversized returnUrl: ${returnUrl?.length} chars`);
+    return null;
+  }
+
   try {
     const url = new URL(returnUrl);
     const hostname = url.hostname.toLowerCase();

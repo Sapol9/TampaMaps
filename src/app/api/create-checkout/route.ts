@@ -6,6 +6,46 @@ function getStripe() {
   return new Stripe(process.env.STRIPE_SECRET_KEY!);
 }
 
+/**
+ * SECURITY: Validate returnUrl to prevent open redirect attacks
+ * Only allow redirects to trusted domains
+ */
+function validateReturnUrl(returnUrl: string | undefined, baseUrl: string): string | null {
+  if (!returnUrl) {
+    return null;
+  }
+
+  try {
+    const url = new URL(returnUrl);
+    const hostname = url.hostname.toLowerCase();
+
+    // Allowed domains
+    const allowedDomains = [
+      "mapmarked.com",
+      "www.mapmarked.com",
+      "localhost",
+    ];
+
+    // Check exact domain match
+    if (allowedDomains.includes(hostname)) {
+      return returnUrl;
+    }
+
+    // Allow *.vercel.app for preview deployments
+    if (hostname.endsWith(".vercel.app")) {
+      return returnUrl;
+    }
+
+    // URL not allowed - log for monitoring
+    console.warn(`[create-checkout] Blocked invalid returnUrl: ${hostname}`);
+    return null;
+  } catch {
+    // Invalid URL format
+    console.warn(`[create-checkout] Blocked malformed returnUrl: ${returnUrl}`);
+    return null;
+  }
+}
+
 // Stripe Price IDs - these should be created in Stripe Dashboard
 // For now, we'll create prices on the fly (not recommended for production)
 // TODO: Replace with actual Stripe Price IDs from Dashboard
@@ -54,6 +94,9 @@ export async function POST(request: NextRequest) {
     const stripe = getStripe();
     const price = PRICES[priceType as keyof typeof PRICES];
 
+    // SECURITY: Validate returnUrl to prevent open redirect attacks
+    const safeReturnUrl = validateReturnUrl(returnUrl, baseUrl) || baseUrl;
+
     if (priceType === "subscription") {
       // Create subscription checkout
       const session = await stripe.checkout.sessions.create({
@@ -75,8 +118,8 @@ export async function POST(request: NextRequest) {
           },
         ],
         mode: "subscription",
-        success_url: `${returnUrl || baseUrl}?paid=true&type=subscription&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${returnUrl || baseUrl}?canceled=true`,
+        success_url: `${safeReturnUrl}?paid=true&type=subscription&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${safeReturnUrl}?canceled=true`,
         metadata: {
           type: "subscription",
         },
@@ -101,8 +144,8 @@ export async function POST(request: NextRequest) {
           },
         ],
         mode: "payment",
-        success_url: `${returnUrl || baseUrl}?paid=true&type=single&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${returnUrl || baseUrl}?canceled=true`,
+        success_url: `${safeReturnUrl}?paid=true&type=single&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${safeReturnUrl}?canceled=true`,
         metadata: {
           type: "single",
         },

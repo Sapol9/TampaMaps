@@ -24,6 +24,7 @@ interface FocusPoint {
 
 type DetailLineType = "coordinates" | "address" | "none";
 type TextLayout = "classic" | "overlay";
+type ClassicTextStyle = "color" | "bw";
 
 interface MapPreviewProps {
   theme: Theme;
@@ -35,6 +36,7 @@ interface MapPreviewProps {
   focusPoint?: FocusPoint | null;
   detailLineType?: DetailLineType;
   textLayout?: TextLayout;
+  classicTextStyle?: ClassicTextStyle;
   showSafeZone?: boolean;
   showTextOverlay?: boolean;
   showMarker?: boolean;
@@ -57,6 +59,7 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
   focusPoint,
   detailLineType = "coordinates",
   textLayout = "classic",
+  classicTextStyle = "color",
   showSafeZone = false,
   showTextOverlay = true,
   showMarker = false,
@@ -297,69 +300,89 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
   };
 
   // Text content component - shared between both layouts
-  const TextContent = ({ padding = true }: { padding?: boolean }) => (
-    <div className="text-center" style={padding ? { paddingTop: "3cqw", paddingBottom: "2cqw" } : {}}>
-      {/* City Name */}
-      <h2
-        className="font-semibold leading-none whitespace-nowrap"
-        style={{
-          fontFamily: "var(--font-space-grotesk), sans-serif",
-          color: theme.colors.text,
-          opacity: 0.95,
-          letterSpacing: "0.12em",
-          marginBottom: "1.5cqw",
-          fontSize: getFontSize(),
-        }}
-      >
-        {spacedCityName}
-      </h2>
+  // For overlay mode, use theme colors with text shadow
+  // For classic mode, use B&W or theme colors based on classicTextStyle
+  const TextContent = ({ padding = true, useOverlayStyle = false }: { padding?: boolean; useOverlayStyle?: boolean }) => {
+    // Determine text color based on mode
+    const textColor = useOverlayStyle
+      ? theme.colors.text
+      : classicTextStyle === "bw"
+        ? "#000000"
+        : theme.colors.text;
 
-      {/* Decorative Line */}
-      <div
-        className="mx-auto"
-        style={{
-          width: "10cqw",
-          height: "2px",
-          marginBottom: "1.5cqw",
-          backgroundColor: theme.colors.text,
-          opacity: 0.8,
-        }}
-      />
+    // Text shadow for overlay mode (text directly on map)
+    const textShadow = useOverlayStyle
+      ? `0 1px 3px ${theme.colors.bg}cc, 0 0 8px ${theme.colors.bg}99`
+      : undefined;
 
-      {/* State Name */}
-      {stateName && (
-        <p
-          className="font-light uppercase whitespace-nowrap"
+    return (
+      <div className="text-center" style={padding ? { paddingTop: "3cqw", paddingBottom: "2cqw" } : {}}>
+        {/* City Name */}
+        <h2
+          className="font-semibold leading-none whitespace-nowrap"
           style={{
             fontFamily: "var(--font-space-grotesk), sans-serif",
-            color: theme.colors.text,
-            opacity: 0.85,
-            letterSpacing: "0.15em",
-            fontSize: "3cqw",
-            marginBottom: detailLineType !== "none" ? "0.8cqw" : "0",
+            color: textColor,
+            opacity: 0.95,
+            letterSpacing: "0.12em",
+            marginBottom: "1.5cqw",
+            fontSize: getFontSize(),
+            textShadow,
           }}
         >
-          {stateName.toUpperCase()}
-        </p>
-      )}
+          {spacedCityName}
+        </h2>
 
-      {/* Detail Line */}
-      {detailLineType !== "none" && (
-        <p
-          className="font-light whitespace-nowrap"
+        {/* Decorative Line */}
+        <div
+          className="mx-auto"
           style={{
-            fontFamily: "var(--font-space-grotesk), sans-serif",
-            color: theme.colors.text,
-            opacity: 0.6,
-            letterSpacing: "0.08em",
-            fontSize: "2.2cqw",
+            width: "10cqw",
+            height: "2px",
+            marginBottom: "1.5cqw",
+            backgroundColor: textColor,
+            opacity: 0.8,
+            boxShadow: textShadow,
           }}
-        >
-          {detailText || formattedCoords}
-        </p>
-      )}
-    </div>
-  );
+        />
+
+        {/* State Name */}
+        {stateName && (
+          <p
+            className="font-light uppercase whitespace-nowrap"
+            style={{
+              fontFamily: "var(--font-space-grotesk), sans-serif",
+              color: textColor,
+              opacity: 0.85,
+              letterSpacing: "0.15em",
+              fontSize: "3cqw",
+              marginBottom: detailLineType !== "none" ? "0.8cqw" : "0",
+              textShadow,
+            }}
+          >
+            {stateName.toUpperCase()}
+          </p>
+        )}
+
+        {/* Detail Line */}
+        {detailLineType !== "none" && (
+          <p
+            className="font-light whitespace-nowrap"
+            style={{
+              fontFamily: "var(--font-space-grotesk), sans-serif",
+              color: textColor,
+              opacity: 0.6,
+              letterSpacing: "0.08em",
+              fontSize: "2.2cqw",
+              textShadow,
+            }}
+          >
+            {detailText || formattedCoords}
+          </p>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="relative w-full">
@@ -431,7 +454,7 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
             </button>
           )}
 
-          {/* Overlay mode: Text with gradient background */}
+          {/* Overlay mode: Text floating on map with subtle shadow */}
           {textLayout === "overlay" && showTextOverlay && !isLoading && !error && (
             <div
               className="absolute left-0 right-0 bottom-0 pointer-events-none z-20"
@@ -441,16 +464,7 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
                 paddingRight: `${SAFE_ZONE_HORIZONTAL_PERCENT}%`,
               }}
             >
-              {/* Gradient overlay for text readability */}
-              <div
-                className="absolute inset-0"
-                style={{
-                  background: `linear-gradient(to top, ${theme.colors.bg}ee 0%, ${theme.colors.bg}cc 30%, ${theme.colors.bg}66 60%, transparent 100%)`,
-                }}
-              />
-              <div className="relative">
-                <TextContent padding />
-              </div>
+              <TextContent padding useOverlayStyle />
             </div>
           )}
 
@@ -478,8 +492,8 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
           <div
             className="flex-shrink-0"
             style={{
-              backgroundColor: theme.colors.bg,
-              borderTop: `1px solid ${theme.colors.text}15`,
+              backgroundColor: classicTextStyle === "bw" ? "#FFFFFF" : theme.colors.bg,
+              borderTop: `1px solid ${classicTextStyle === "bw" ? "#00000015" : theme.colors.text + "15"}`,
               paddingLeft: `${SAFE_ZONE_HORIZONTAL_PERCENT}%`,
               paddingRight: `${SAFE_ZONE_HORIZONTAL_PERCENT}%`,
               paddingTop: "3cqw",
@@ -511,4 +525,4 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
 });
 
 export default MapPreview;
-export type { MapPreviewProps, FocusPoint, DetailLineType, TextLayout };
+export type { MapPreviewProps, FocusPoint, DetailLineType, TextLayout, ClassicTextStyle };

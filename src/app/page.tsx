@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import themes from "@/data/themes.json";
 import locations from "@/data/locations.json";
 import type { Theme } from "@/lib/mapbox/applyTheme";
-import { type MapPreviewHandle, type DetailLineType, type TextLayout } from "@/components/MapPreview";
+import { type MapPreviewHandle, type DetailLineType, type TextLayout, type ClassicTextStyle } from "@/components/MapPreview";
 
 const MapPreview = dynamic(() => import("@/components/MapPreview"), {
   ssr: false,
@@ -99,6 +99,7 @@ function HomeContent() {
 
   // Text layout
   const [textLayout, setTextLayout] = useState<TextLayout>("classic");
+  const [classicTextStyle, setClassicTextStyle] = useState<ClassicTextStyle>("color");
 
   // Points/marker
   const [showMarker, setShowMarker] = useState(false);
@@ -568,6 +569,35 @@ function HomeContent() {
                     </div>
                   </div>
 
+                  {/* Text Style Toggle - only for Classic layout */}
+                  {textLayout === "classic" && (
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-400 mb-2">Text Style</label>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setClassicTextStyle("color")}
+                          className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                            classicTextStyle === "color"
+                              ? "bg-white text-black"
+                              : "bg-neutral-800 text-neutral-400 hover:text-white"
+                          }`}
+                        >
+                          Color
+                        </button>
+                        <button
+                          onClick={() => setClassicTextStyle("bw")}
+                          className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                            classicTextStyle === "bw"
+                              ? "bg-white text-black"
+                              : "bg-neutral-800 text-neutral-400 hover:text-white"
+                          }`}
+                        >
+                          Black & White
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-sm font-medium text-neutral-400 mb-2">City Name</label>
                     <input
@@ -699,6 +729,7 @@ function HomeContent() {
                   detailText={detailText}
                   detailLineType={detailLineType}
                   textLayout={textLayout}
+                  classicTextStyle={classicTextStyle}
                   showSafeZone={false}
                   showMarker={showMarker}
                   aspectRatio={selectedSize.aspectRatio}

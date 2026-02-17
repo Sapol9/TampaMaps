@@ -1,15 +1,31 @@
-# Tampa Bay Maps - Project Overview
+# MapMarked - Project Overview
 
-> Premium minimalist map art for the Tampa Bay area
+> SaaS Map Art Generator
 
 ## Project Summary
 
-**Tampa Bay Maps** is a single-product e-commerce platform selling high-quality, minimalist map canvas prints of Tampa Bay. The site offers 17 distinct map styles organized by mood, all rendered at gallery-quality resolution using Mapbox GL JS.
+**MapMarked** is a SaaS platform that lets users generate print-ready custom map art of any location on Earth. Users search for a city or address, choose a style, and download high-resolution artwork suitable for printing at home or through services like Printful.
 
-- **Website**: tampabaymaps.com (with tbmaps.com redirect)
-- **Product**: 18" × 24" Gallery Wrapped Canvas
-- **Price**: $94.00 (includes free shipping)
-- **Fulfillment**: Printful
+- **Website**: mapmarked.com
+- **Product**: Digital map art downloads (JPG, 300 DPI)
+- **Pricing**: Free (watermarked), $5 single download, $10/month unlimited
+- **Rendering**: External render server using Mapbox Static API + Sharp
+
+---
+
+## Business Model
+
+| Tier | Price | Features |
+|------|-------|----------|
+| Free | $0 | Unlimited previews, watermarked downloads, 300 DPI |
+| Single | $5 | One watermark-free download, commercial use OK |
+| Unlimited | $10/mo | Unlimited watermark-free downloads, all styles |
+
+**Target Users**:
+- Etsy sellers creating custom map prints
+- Real estate agents making closing gifts
+- Individuals wanting personalized wall art
+- Gift givers for weddings, anniversaries, hometowns
 
 ---
 
@@ -17,281 +33,173 @@
 
 | Layer | Technology |
 |-------|------------|
-| Framework | Next.js |
+| Framework | Next.js 16 |
 | Styling | Tailwind CSS |
-| Map Engine | Mapbox GL JS |
-| Hosting | Vercel or Cloudflare Pages |
-| Fulfillment | Printful API |
-
-**Reference Implementation**: [maptoposter](https://github.com/originalankur/maptoposter) - for map rendering and high-resolution export logic
+| Map Preview | Mapbox GL JS (client-side) |
+| Map Rendering | Mapbox Static API + Sharp (server-side) |
+| Payments | Stripe Checkout |
+| Hosting | Vercel |
+| Render Server | Render.com (Docker/Node.js) |
 
 ---
 
 ## Architecture
 
-### Directory Structure
+### Frontend (TampaMaps repo on Vercel)
 
 ```
-/TampaMaps
-├── /data
-│   ├── locations.json      # City coordinates, zoom levels
-│   └── styles.json         # 17 map styles with mood tags
+/src
+├── /app
+│   ├── page.tsx              # Single-page app (hero, tool, pricing)
+│   ├── layout.tsx            # Root layout with metadata
+│   ├── sitemap.ts            # Dynamic sitemap
+│   └── /api
+│       ├── create-checkout/  # Stripe checkout sessions
+│       └── generate-print/   # Proxy to render server
 ├── /components
-├── /pages
-│   └── /shop
-│       └── [city].js       # Dynamic city routes
+│   ├── MapPreview.tsx        # Live Mapbox GL JS preview
+│   ├── RenderingOverlay.tsx  # Loading state overlay
+│   └── SafeZoneOverlay.tsx   # Print safe zone visualization
+├── /data
+│   ├── locations.json        # Preset city coordinates
+│   └── themes.json           # 5 map style themes
 ├── /lib
-│   └── mapbox/             # Map engine, layer scrubbing, export
-├── /config
-│   └── printful.js         # Product ID mappings
-└── /public
+│   └── /mapbox               # Map styling utilities
+└── /config
+    └── site.ts               # Site configuration
 ```
 
-### Data-Driven Design
+### Render Server (mapmarked-render-server on Render.com)
 
-All configuration is externalized to JSON files to prevent hard-coding:
-
-**locations.json**
-```json
-{
-  "tampa": {
-    "name": "Tampa",
-    "lat": 27.9506,
-    "lng": -82.4572,
-    "zoom": 12
-  }
-}
 ```
-
-**styles.json**
-```json
-[
-  { "id": "noir", "name": "Noir", "moodTag": "Technical", "mapboxStyle": "..." },
-  { "id": "blueprint", "name": "Blueprint", "moodTag": "Technical", "mapboxStyle": "..." },
-  { "id": "autumn", "name": "Autumn", "moodTag": "Elemental", "mapboxStyle": "..." }
-]
+/src
+├── index.js                  # Express server with job queue
+└── /services
+    └── renderer.js           # Mapbox Static API + Sharp compositing
 ```
 
 ---
 
-## Product Specifications
+## Map Styles (5 Themes)
 
-### Canvas Details
+| ID | Name | Description |
+|----|------|-------------|
+| obsidian | The Obsidian | Dark charcoal with white roads on black water |
+| cobalt | The Cobalt | Deep Prussian blue with cyan-tinted roads |
+| parchment | The Parchment | Light cream background with dark ink roads |
+| coastal | The Coastal | Soft teals with sandy warm tones |
+| copper | The Copper | Dark gunmetal with warm copper roads |
+
+---
+
+## Print Specifications
 
 | Attribute | Value |
 |-----------|-------|
-| Size | 18" × 24" |
-| Frame Depth | 1.25" (gallery wrap) |
-| Frame Material | Hand-glued solid wood bars |
-| Canvas | Acid-free poly-cotton |
-| Inks | Fade-resistant, archival quality |
+| Resolution | 300 DPI |
+| Output Size | 5400 × 7200 px (18" × 24") |
+| Format | JPEG (quality 95) |
+| Safe Zone | 1.5" (6.25% vertical, 8.33% horizontal) |
 
-### Print Resolution
+### Size Options (UI only - all render at same resolution)
 
-| Dimension | Calculation | Pixels |
-|-----------|-------------|--------|
-| Width | 18" × 300 DPI | 5,400 px |
-| Height | 24" × 300 DPI | 7,200 px |
-| **Total Output** | | **5400 × 7200 px** |
-
-### Safe Zone
-
-A **1.5-inch safe zone** margin accounts for the 1.25" gallery wrap depth. This overlay is displayed in the UI preview so customers understand where the wrap occurs.
+- 12" × 16"
+- 16" × 20"
+- 18" × 24"
 
 ---
 
-## Map Engine
+## Page Layout
 
-### Layer Scrubbing ("Blue Dot Fix")
+### Single Page Structure
 
-To achieve a clean, architectural aesthetic, the following Mapbox layers are programmatically hidden on initialization:
+1. **Hero Section**
+   - Headline: "Create Stunning Map Art in Seconds"
+   - Subtitle: "Print-ready custom maps... Perfect for wall art, gifts, Etsy shops, and closing gifts."
+   - 4 example map cards (clickable to try style)
+   - CTA button scrolls to tool
 
-| Layer ID | Purpose |
-|----------|---------|
-| `poi-label` | Removes businesses, parks, points of interest |
-| `transit-label` | Removes bus, rail, station icons |
-| `airport-label` | Removes runway and airport markers |
+2. **Tool Section** (inline, no pages)
+   - City/address search bar (Mapbox Geocoding)
+   - Live Mapbox GL JS map preview
+   - Style picker: 5 thumbnail cards
+   - Size dropdown
+   - Download button: "Download Print-Ready Map"
+   - Watermark notice with link to pricing
 
-**Implementation**: Use `map.setLayoutProperty(layerId, 'visibility', 'none')` on map load and style change events.
+3. **Pricing Section**
+   - 3-column layout: Free, $5 Single, $10/mo Unlimited
+   - Feature comparison
+   - Stripe checkout buttons
 
-### High-Resolution Export
-
-- Output: PNG at 5400 × 7200 pixels
-- Handle `devicePixelRatio` correctly per maptoposter implementation
-- Ensure artifact-free, sharp output for large-format printing
-
-### Style Persistence
-
-When users switch between styles:
-1. Coordinates remain locked to `locations.json` values
-2. Zoom level persists
-3. Layer scrubbing re-applies automatically
-
----
-
-## Map Styles (17 Total)
-
-Organized into three mood-based categories:
-
-### Technical & Noir
-- Noir
-- Blueprint
-- Slate
-- Charcoal
-- *(additional styles TBD)*
-
-### Elemental & Warm
-- Autumn
-- Copper Patina
-- Gradient Rust
-- Driftwood
-- *(additional styles TBD)*
-
-### Modern & Bold
-- Neon Cyberpunk
-- Contrast Zones
-- Japanese Ink
-- Monochrome Blue
-- *(additional styles TBD)*
+4. **Footer**
+   - Printful affiliate recommendation
+   - Copyright and attribution
 
 ---
 
-## Storefront UI
+## Payment Flow
 
-### Design Philosophy
+1. User clicks "$5" or "$10/mo" button
+2. Frontend calls `/api/create-checkout` with price type
+3. API creates Stripe Checkout session
+4. User redirected to Stripe
+5. On success, redirected back with `?paid=true`
+6. Frontend shows success banner
+7. Download button triggers watermark-free render
 
-- **Minimalist, Noir-inspired aesthetic**
-- Clean typography
-- Ample white space
-- Subtle high-contrast accents
-- Mobile-first (optimized for social media traffic)
+---
 
-### Page Layout
+## Render Flow
 
-1. **Hero Section**: Full-width interactive Mapbox preview
-2. **Style Navigation**: Tab-based mood selector
-   - Tab 1: Technical & Noir
-   - Tab 2: Elemental & Warm
-   - Tab 3: Modern & Bold
-3. **Product Info**:
-   - "Our Signature Size: 18" × 24" Gallery Wrap (1.25" Depth)"
-   - Price: $94.00
-   - "Free Shipping" badge
-4. **Product Details**: Material specs, quality highlights
-5. **Safe Zone Toggle**: Visual overlay for wrap preview
-6. **Footer**: Trademark & Affiliation Disclaimer
+1. User clicks "Download Print-Ready Map"
+2. Frontend calls `/api/generate-print` with map params
+3. API proxies to render server with auth secret
+4. Render server:
+   - Fetches map from Mapbox Static API (1280×1280 @2x)
+   - Scales to 5400×7200 using Sharp
+   - Creates SVG text overlay (city, state, coordinates)
+   - Composites SVG onto map
+   - Adds watermark if `paid: false`
+   - Returns base64 JPEG
+5. Frontend downloads as JPG file
 
-### Single-Product Constraint
+---
 
-No size dropdown. The UI is hard-coded for the 18" × 24" canvas. Descriptive text replaces selection UI.
+## Environment Variables
+
+### Frontend (Vercel)
+
+```
+NEXT_PUBLIC_MAPBOX_TOKEN=pk.xxx
+STRIPE_SECRET_KEY=sk_xxx
+RENDER_SERVER_URL=https://mapmarked-render-server.onrender.com
+RENDER_SECRET=xxx
+```
+
+### Render Server (Render.com)
+
+```
+MAPBOX_ACCESS_TOKEN=pk.xxx
+RENDER_SECRET=xxx
+```
 
 ---
 
 ## Deployment
 
-### Hosting
-
-- **Primary**: Vercel or Cloudflare Pages
-- **Build**: Optimized Next.js production build
-- **Environment Variables**: Mapbox tokens, Printful API keys
-
-### Domain Configuration
-
-| Domain | Purpose |
-|--------|---------|
-| tampabaymaps.com | Primary canonical URL |
-| tbmaps.com | 301 redirect to primary |
-
-### SEO
-
-Dynamic metadata for all pages:
-```html
-<title>Tampa Bay Maps | Premium 18x24 Minimalist Noir Canvas Art</title>
-<meta name="description" content="..." />
-```
+| Service | URL | Purpose |
+|---------|-----|---------|
+| Vercel | mapmarked.com | Frontend + API |
+| Render.com | mapmarked-render-server.onrender.com | Image rendering |
 
 ---
 
-## Expansion Framework
+## Future Enhancements
 
-### City Switcher Architecture
-
-The `locations.json` file drives automatic route generation:
-
-- Adding a new city entry creates a new URL slug automatically
-- Example: Adding `"miami": {...}` generates `/shop/miami`
-- No additional coding required for new locations
-
-### Printful Integration
-
-Centralized product ID configuration in `/config/printful.js`:
-- Map 18" × 24" Gallery Wrap to Printful variant ID
-- Architecture supports future size/product additions
-
----
-
-## Legal
-
-### Trademark & Affiliation Disclaimer
-
-The footer must include a disclaimer stating:
-
-> Tampa Bay Maps is an independent artistic venture. We are not affiliated with, endorsed by, or connected to any professional sports leagues, collegiate athletic programs, universities, or local government agencies. All map artwork is original and created for decorative purposes.
-
----
-
-## 2026 Launch Checklist
-
-| Action | Objective | Status |
-|--------|-----------|--------|
-| Verify Mapbox Token | Ensure public token is restricted to your domains | ☐ |
-| Test Mobile UI | Verify "Mood" tabs are easy to tap on smartphone | ☐ |
-| Check High-Res Output | Download sample map, verify exactly 5400×7200px | ☐ |
-| Confirm Disclaimer | Ensure trademark non-affiliation text is in footer | ☐ |
-| Test 301 Redirect | Verify tbmaps.com redirects to tampabaymaps.com | ☐ |
-| Printful Test Order | Place test order to verify fulfillment flow | ☐ |
-| Safe Zone Accuracy | Verify 1.5" margin is mathematically correct | ☐ |
-| Performance Audit | Test mobile load times for Tampa users | ☐ |
-
----
-
-## Development Phases
-
-### Phase 1: Foundation & Modular Architecture
-- Initialize Next.js + Tailwind CSS
-- Create `/data` directory with `locations.json` and `styles.json`
-- Define global constants (size, price, resolution)
-- Scaffold home page and style navigation
-- Add legal footer
-
-### Phase 2: Map Engine & High-Resolution Rendering
-- Integrate Mapbox GL JS (reference: maptoposter)
-- Implement layer scrubbing for clean aesthetic
-- Build high-resolution PNG export (5400 × 7200px)
-- Add safe zone visualization overlay
-- Implement style switching with coordinate persistence
-
-### Phase 3: Storefront UI & Navigation
-- Build hero section with interactive map preview
-- Implement mood-based tab navigation
-- Create product details section
-- Add pricing and free shipping badge
-- Optimize for mobile
-
-### Phase 4: Deployment & Expansion
-- Configure Vercel/Cloudflare deployment
-- Set up domain routing and redirects
-- Implement SEO metadata
-- Build city switcher foundation
-- Configure Printful API mapping
-- Final QA and launch
-
----
-
-## Resources
-
-- **Reference Repo**: https://github.com/originalankur/maptoposter
-- **Mapbox GL JS Docs**: https://docs.mapbox.com/mapbox-gl-js/
-- **Printful API**: https://www.printful.com/docs
-- **Next.js Docs**: https://nextjs.org/docs
-- **Tailwind CSS**: https://tailwindcss.com/docs
+- [ ] Custom text options (change city/state names)
+- [ ] Address-based focus point
+- [ ] Additional map styles
+- [ ] Canvas print fulfillment (Printful integration)
+- [ ] User accounts with download history
+- [ ] Bulk download for subscribers

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyPayment } from "@/lib/paymentVerification";
+import { checkRateLimit, getClientIp, rateLimiters, RateLimitError } from "@/lib/rateLimit";
 
 /**
  * Proxy to the external MapMarked Render Server
@@ -111,6 +112,20 @@ async function waitForCompletion(jobId: string): Promise<string> {
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 10 requests per minute per IP
+    const clientIp = getClientIp(request);
+    try {
+      checkRateLimit(rateLimiters.expensive, clientIp);
+    } catch (error) {
+      if (error instanceof RateLimitError) {
+        return NextResponse.json(
+          { error: "Too many requests. Please try again later." },
+          { status: 429, headers: { "Retry-After": String(error.retryAfter) } }
+        );
+      }
+      throw error;
+    }
+
     // Validate environment
     if (!RENDER_SERVER_URL || !RENDER_SECRET) {
       console.error("[generate-print] Missing RENDER_SERVER_URL or RENDER_SECRET");

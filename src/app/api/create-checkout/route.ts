@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { checkRateLimit, getClientIp, rateLimiters, RateLimitError } from "@/lib/rateLimit";
 
 // Lazy-initialize Stripe to avoid build-time errors
 function getStripe() {
@@ -64,6 +65,20 @@ const PRICES = {
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 5 requests per minute per IP
+    const clientIp = getClientIp(request);
+    try {
+      checkRateLimit(rateLimiters.checkout, clientIp);
+    } catch (error) {
+      if (error instanceof RateLimitError) {
+        return NextResponse.json(
+          { error: "Too many requests. Please try again later." },
+          { status: 429, headers: { "Retry-After": String(error.retryAfter) } }
+        );
+      }
+      throw error;
+    }
+
     const body = await request.json();
     const { priceType, returnUrl } = body;
 

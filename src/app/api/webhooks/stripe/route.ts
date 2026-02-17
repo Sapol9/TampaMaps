@@ -5,6 +5,7 @@ import {
   deletePendingOrder,
   storeCompletedOrder,
 } from "@/lib/orderStorage";
+import { checkRateLimit, getClientIp, rateLimiters, RateLimitError } from "@/lib/rateLimit";
 
 // Lazy-initialize to avoid build-time errors when env vars aren't available
 function getStripe() {
@@ -323,6 +324,20 @@ async function generateMockup(fileUrl: string): Promise<string> {
 }
 
 export async function POST(request: NextRequest) {
+  // Rate limit: 30 requests per minute per IP (webhooks can be bursty)
+  const clientIp = getClientIp(request);
+  try {
+    checkRateLimit(rateLimiters.webhook, clientIp);
+  } catch (error) {
+    if (error instanceof RateLimitError) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429, headers: { "Retry-After": String(error.retryAfter) } }
+      );
+    }
+    throw error;
+  }
+
   const body = await request.text();
   const signature = request.headers.get("stripe-signature");
 

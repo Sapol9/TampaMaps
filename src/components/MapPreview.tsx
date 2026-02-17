@@ -44,17 +44,6 @@ interface MapPreviewProps {
   onRenderComplete?: () => void;
 }
 
-function CrosshairOverlay({ visible, color }: { visible: boolean; color: string }) {
-  if (!visible) return null;
-  return (
-    <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center">
-      <div className="absolute w-8 h-px" style={{ backgroundColor: color, opacity: 0.6 }} />
-      <div className="absolute w-px h-8" style={{ backgroundColor: color, opacity: 0.6 }} />
-      <div className="absolute w-2 h-2 rounded-full" style={{ backgroundColor: color, opacity: 0.8 }} />
-    </div>
-  );
-}
-
 const SAFE_ZONE_VERTICAL_PERCENT = (1.5 / 24) * 100;
 const SAFE_ZONE_HORIZONTAL_PERCENT = (1.5 / 18) * 100;
 
@@ -82,11 +71,12 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
   const marker = useRef<mapboxgl.Marker | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isManualMode, setIsManualMode] = useState(false);
-  const [hasMovedInManualMode, setHasMovedInManualMode] = useState(false);
+  const [hasUserMoved, setHasUserMoved] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const currentThemeRef = useRef<string>(theme.id);
   const lockedCenter = useRef<[number, number]>(center);
+  const lockedZoom = useRef<number>(zoom);
+  const lastLocationKey = useRef<string>("");
 
   const actualCenter: [number, number] = focusPoint ? [focusPoint.lng, focusPoint.lat] : center;
 
@@ -170,7 +160,7 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
     });
 
     map.current.on("moveend", () => {
-      if (isManualMode) setHasMovedInManualMode(true);
+      setHasUserMoved(true);
     });
 
     return () => {
@@ -196,30 +186,30 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
     });
   }, [theme, updateMarker]);
 
+  // Only fly to new location when the actual location changes (not on tab switches)
   useEffect(() => {
     if (!map.current || isLoading) return;
+
+    // Create a key for this location to detect actual changes
+    const locationKey = `${actualCenter[0]},${actualCenter[1]},${zoom}`;
+    if (locationKey === lastLocationKey.current) return;
+    lastLocationKey.current = locationKey;
+
     map.current.flyTo({ center: actualCenter, zoom: zoom, duration: 1000 });
     updateMarker();
     lockedCenter.current = actualCenter;
-    setIsManualMode(false);
-    setHasMovedInManualMode(false);
-  }, [center[0], center[1], focusPoint?.lat, focusPoint?.lng, zoom, isLoading, updateMarker]);
+    lockedZoom.current = zoom;
+    setHasUserMoved(false);
+  }, [center[0], center[1], focusPoint?.lat, focusPoint?.lng, zoom, isLoading, actualCenter, updateMarker]);
 
   useEffect(() => {
     if (!isLoading) updateMarker();
   }, [showMarker, isLoading, updateMarker]);
 
-  const handleToggleManualMode = () => {
-    setIsManualMode(!isManualMode);
-    if (!isManualMode) {
-      setHasMovedInManualMode(false);
-    }
-  };
-
   const handleResetToCenter = () => {
     if (!map.current) return;
-    map.current.flyTo({ center: lockedCenter.current, zoom: zoom, duration: 800 });
-    setHasMovedInManualMode(false);
+    map.current.flyTo({ center: lockedCenter.current, zoom: lockedZoom.current, duration: 800 });
+    setHasUserMoved(false);
   };
 
   const handleZoomIn = () => {
@@ -404,8 +394,6 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
 
           <div ref={mapContainer} className="w-full h-full" />
 
-          <CrosshairOverlay visible={isManualMode} color={theme.colors.text} />
-
           {/* Zoom Controls */}
           {!isLoading && !error && (
             <div className="absolute z-20 top-2 right-2 flex flex-col gap-1">
@@ -430,15 +418,16 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
             </div>
           )}
 
-          {isManualMode && hasMovedInManualMode && !isLoading && !error && (
+          {/* Recenter button - shows when user has moved the map */}
+          {hasUserMoved && !isLoading && !error && (
             <button
               onClick={handleResetToCenter}
               className="absolute z-20 top-2 left-2 px-3 py-1.5 rounded-lg bg-black/80 hover:bg-black transition-colors shadow-sm text-xs font-medium text-white flex items-center gap-1.5"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
               </svg>
-              Reset
+              Recenter
             </button>
           )}
 
@@ -505,28 +494,17 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
       {/* Attribution outside the preview */}
       <div className="mt-2 flex items-center justify-between text-[10px] text-neutral-500">
         <span>© Mapbox © OpenStreetMap</span>
-        <div className="flex items-center gap-3">
+        {onToggleSafeZone && (
           <button
-            onClick={handleToggleManualMode}
+            onClick={onToggleSafeZone}
             className="flex items-center gap-1.5 hover:text-white transition-colors"
           >
-            <span className={`w-3 h-3 rounded border flex items-center justify-center ${isManualMode ? "bg-white border-white" : "border-neutral-600"}`}>
-              {isManualMode && <svg className="w-2 h-2 text-neutral-900" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+            <span className={`w-3 h-3 rounded border flex items-center justify-center ${showSafeZone ? "bg-white border-white" : "border-neutral-600"}`}>
+              {showSafeZone && <svg className="w-2 h-2 text-neutral-900" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
             </span>
-            Adjust position
+            Safe zone
           </button>
-          {onToggleSafeZone && (
-            <button
-              onClick={onToggleSafeZone}
-              className="flex items-center gap-1.5 hover:text-white transition-colors"
-            >
-              <span className={`w-3 h-3 rounded border flex items-center justify-center ${showSafeZone ? "bg-white border-white" : "border-neutral-600"}`}>
-                {showSafeZone && <svg className="w-2 h-2 text-neutral-900" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-              </span>
-              Safe zone
-            </button>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );

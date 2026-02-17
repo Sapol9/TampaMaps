@@ -9,6 +9,7 @@ import {
   validateDetailLineType,
   validateFocusPoint,
 } from "@/lib/sanitize";
+import { logAndRespond } from "@/lib/apiError";
 
 /**
  * Proxy to the external MapMarked Render Server
@@ -226,11 +227,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ imageDataUrl: dataUrl });
   } catch (error) {
-    console.error("[generate-print] Error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
-      { status: 500 }
-    );
+    return logAndRespond(error, "Failed to generate image. Please try again.");
   }
 }
 

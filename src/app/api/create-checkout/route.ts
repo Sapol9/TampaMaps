@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { checkRateLimit, getClientIp, rateLimiters, RateLimitError } from "@/lib/rateLimit";
+import { logAndRespond } from "@/lib/apiError";
 
 // Lazy-initialize Stripe to avoid build-time errors
 function getStripe() {
@@ -175,11 +176,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ url: session.url });
     }
   } catch (error) {
-    console.error("Stripe checkout error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json(
-      { error: "Failed to create checkout session", details: errorMessage },
-      { status: 500 }
-    );
+    return logAndRespond(error, "Failed to create checkout session");
   }
 }

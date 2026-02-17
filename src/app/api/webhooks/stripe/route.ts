@@ -332,116 +332,131 @@ export async function POST(request: NextRequest) {
 
   const stripe = getStripe();
   const webhookSecret = getStripeWebhookSecret();
+  const isProduction = process.env.VERCEL_ENV === "production";
+  const isValidSecret = webhookSecret && webhookSecret !== "whsec_your_webhook_secret_here";
   let event: Stripe.Event;
 
+  // SECURITY: In production, ALWAYS require webhook signature verification
+  if (isProduction && !isValidSecret) {
+    console.error("🔴 CRITICAL: STRIPE_WEBHOOK_SECRET is not configured in production!");
+    return NextResponse.json(
+      { error: "Webhook secret not configured" },
+      { status: 500 }
+    );
+  }
+
   try {
-    // In development without webhook secret, skip verification
-    if (webhookSecret && webhookSecret !== "whsec_your_webhook_secret_here") {
+    if (isValidSecret) {
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
     } else {
-      // Development mode - parse without verification
+      // Development mode ONLY - parse without verification
       event = JSON.parse(body) as Stripe.Event;
-      console.warn("⚠️ Webhook signature verification skipped (no secret configured)");
+      console.warn("⚠️ [DEV ONLY] Webhook signature verification skipped - DO NOT USE IN PRODUCTION");
     }
   } catch (err) {
     console.error("Webhook signature verification failed:", err);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
-  if (event.type === "checkout.session.completed") {
-    const eventSession = event.data.object as Stripe.Checkout.Session;
+  // Early return for unhandled event types
+  if (event.type !== "checkout.session.completed") {
+    console.log(`[Webhook] Ignoring event type: ${event.type}`);
+    return NextResponse.json({ received: true });
+  }
 
-    console.log("📦 Processing completed checkout:", eventSession.id);
+  // Handle checkout.session.completed
+  const eventSession = event.data.object as Stripe.Checkout.Session;
 
-    try {
-      // Get the stored order data
-      const orderData = getPendingOrder(eventSession.id);
+  console.log("📦 Processing completed checkout:", eventSession.id);
 
-      if (!orderData) {
-        console.error("No pending order found for session:", eventSession.id);
-        return NextResponse.json({ error: "No order data found" }, { status: 400 });
-      }
+  try {
+    // Get the stored order data
+    const orderData = getPendingOrder(eventSession.id);
 
-      // Retrieve full session with shipping details
-      const fullSession = await stripe.checkout.sessions.retrieve(eventSession.id);
-
-      // Get shipping details from session (type assertion needed)
-      const shippingDetails = (fullSession as unknown as {
-        shipping_details?: {
-          name?: string | null;
-          address?: Stripe.Address | null;
-        } | null
-      }).shipping_details;
-      const customerDetails = fullSession.customer_details;
-
-      if (!shippingDetails?.address) {
-        console.error("No shipping address in session:", eventSession.id);
-        return NextResponse.json({ error: "No shipping address" }, { status: 400 });
-      }
-
-      const { cityName, stateName, themeName, imageUrl } = orderData;
-      const productName = `${cityName}, ${stateName} Map Canvas - ${themeName}`;
-      const filename = `mapmarked-${cityName.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.jpg`;
-
-      console.log("📤 Uploading file to Printful...");
-
-      // 1. Upload file to Printful
-      const fileResponse = await uploadFileToPrintful(imageUrl, filename);
-      const fileUrl = fileResponse.result.url;
-
-      console.log("✅ File uploaded:", fileUrl);
-
-      // 2. Create Printful order
-      console.log("📝 Creating Printful order...");
-
-      const recipient = {
-        name: shippingDetails.name || customerDetails?.name || "Customer",
-        address1: shippingDetails.address.line1 || "",
-        address2: shippingDetails.address.line2 || undefined,
-        city: shippingDetails.address.city || "",
-        state_code: shippingDetails.address.state || "",
-        country_code: shippingDetails.address.country || "US",
-        zip: shippingDetails.address.postal_code || "",
-        email: customerDetails?.email || undefined,
-      };
-
-      const orderResponse = await createPrintfulOrder(
-        fileUrl,
-        recipient,
-        eventSession.id,
-        productName
-      );
-
-      console.log("✅ Printful order created:", orderResponse.result.id);
-
-      // 3. Generate mockup
-      console.log("🖼️ Generating mockup...");
-
-      let mockupUrl = "";
-      try {
-        mockupUrl = await generateMockup(fileUrl);
-        console.log("✅ Mockup generated:", mockupUrl);
-      } catch (mockupError) {
-        console.error("Mockup generation failed (non-critical):", mockupError);
-        // Continue without mockup - non-critical failure
-      }
-
-      // 4. Store completed order data for confirmation page
-      storeCompletedOrder(eventSession.id, {
-        mockupUrl,
-        printfulOrderId: orderResponse.result.id,
-      });
-
-      // Clean up pending order
-      deletePendingOrder(eventSession.id);
-
-      console.log("✅ Order processing complete for session:", eventSession.id);
-
-    } catch (error) {
-      console.error("Error processing order:", error);
-      // Don't return error - Stripe will retry if we return non-200
-      // Log the error but acknowledge receipt
+    if (!orderData) {
+      console.error("No pending order found for session:", eventSession.id);
+      return NextResponse.json({ error: "No order data found" }, { status: 400 });
     }
+
+    // Retrieve full session with shipping details
+    const fullSession = await stripe.checkout.sessions.retrieve(eventSession.id);
+
+    // Get shipping details from session (type assertion needed)
+    const shippingDetails = (fullSession as unknown as {
+      shipping_details?: {
+        name?: string | null;
+        address?: Stripe.Address | null;
+      } | null
+    }).shipping_details;
+    const customerDetails = fullSession.customer_details;
+
+    if (!shippingDetails?.address) {
+      console.error("No shipping address in session:", eventSession.id);
+      return NextResponse.json({ error: "No shipping address" }, { status: 400 });
+    }
+
+    const { cityName, stateName, themeName, imageUrl } = orderData;
+    const productName = `${cityName}, ${stateName} Map Canvas - ${themeName}`;
+    const filename = `mapmarked-${cityName.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.jpg`;
+
+    console.log("📤 Uploading file to Printful...");
+
+    // 1. Upload file to Printful
+    const fileResponse = await uploadFileToPrintful(imageUrl, filename);
+    const fileUrl = fileResponse.result.url;
+
+    console.log("✅ File uploaded:", fileUrl);
+
+    // 2. Create Printful order
+    console.log("📝 Creating Printful order...");
+
+    const recipient = {
+      name: shippingDetails.name || customerDetails?.name || "Customer",
+      address1: shippingDetails.address.line1 || "",
+      address2: shippingDetails.address.line2 || undefined,
+      city: shippingDetails.address.city || "",
+      state_code: shippingDetails.address.state || "",
+      country_code: shippingDetails.address.country || "US",
+      zip: shippingDetails.address.postal_code || "",
+      email: customerDetails?.email || undefined,
+    };
+
+    const orderResponse = await createPrintfulOrder(
+      fileUrl,
+      recipient,
+      eventSession.id,
+      productName
+    );
+
+    console.log("✅ Printful order created:", orderResponse.result.id);
+
+    // 3. Generate mockup
+    console.log("🖼️ Generating mockup...");
+
+    let mockupUrl = "";
+    try {
+      mockupUrl = await generateMockup(fileUrl);
+      console.log("✅ Mockup generated:", mockupUrl);
+    } catch (mockupError) {
+      console.error("Mockup generation failed (non-critical):", mockupError);
+      // Continue without mockup - non-critical failure
+    }
+
+    // 4. Store completed order data for confirmation page
+    storeCompletedOrder(eventSession.id, {
+      mockupUrl,
+      printfulOrderId: orderResponse.result.id,
+    });
+
+    // Clean up pending order
+    deletePendingOrder(eventSession.id);
+
+    console.log("✅ Order processing complete for session:", eventSession.id);
+
+  } catch (error) {
+    console.error("Error processing order:", error);
+    // Don't return error - Stripe will retry if we return non-200
+    // Log the error but acknowledge receipt
   }
 
   return NextResponse.json({ received: true });

@@ -6,9 +6,8 @@ import dynamic from "next/dynamic";
 import themes from "@/data/themes.json";
 import locations from "@/data/locations.json";
 import type { Theme } from "@/lib/mapbox/applyTheme";
-import { type MapPreviewHandle } from "@/components/MapPreview";
+import { type MapPreviewHandle, type DetailLineType } from "@/components/MapPreview";
 
-// Lazy load MapPreview
 const MapPreview = dynamic(() => import("@/components/MapPreview"), {
   ssr: false,
   loading: () => (
@@ -29,14 +28,13 @@ interface LocationData {
   zoom: number;
 }
 
-// Print sizes
 const PRINT_SIZES = [
-  { id: "12x16", label: '12" × 16"' },
-  { id: "16x20", label: '16" × 20"' },
-  { id: "18x24", label: '18" × 24"' },
+  { id: "12x16", label: '12" × 16"', aspectRatio: "3/4" },
+  { id: "16x20", label: '16" × 20"', aspectRatio: "4/5" },
+  { id: "18x24", label: '18" × 24"', aspectRatio: "3/4" },
+  { id: "24x36", label: '24" × 36"', aspectRatio: "2/3" },
 ];
 
-// Example cities for hero
 const HERO_EXAMPLES = [
   { city: "New York", state: "NY", theme: "obsidian", lat: 40.7128, lng: -74.006 },
   { city: "Paris", state: "France", theme: "parchment", lat: 48.8566, lng: 2.3522 },
@@ -46,19 +44,67 @@ const HERO_EXAMPLES = [
 
 const presetLocations: LocationData[] = Object.values(locations);
 
+// Parse city name from geocode result
+function parseCityName(feature: {
+  text: string;
+  place_name: string;
+  place_type?: string[];
+  context?: Array<{ id: string; text: string; short_code?: string }>;
+}): { city: string; state: string; country: string } {
+  const context = feature.context || [];
+
+  // Find place (city), region (state), and country from context
+  const placeCtx = context.find((c) => c.id.startsWith("place"));
+  const regionCtx = context.find((c) => c.id.startsWith("region"));
+  const countryCtx = context.find((c) => c.id.startsWith("country"));
+
+  // If the result IS a place, use its text as city
+  // Otherwise look in context for the place
+  let city = feature.text;
+  if (feature.place_type?.includes("address") || feature.place_type?.includes("poi")) {
+    city = placeCtx?.text || feature.text;
+  }
+
+  // Use short_code for US states (e.g., "US-FL" -> "FL")
+  let state = regionCtx?.text || "";
+  if (regionCtx?.short_code?.startsWith("US-")) {
+    state = regionCtx.short_code.replace("US-", "");
+  }
+
+  const country = countryCtx?.text || "";
+
+  return { city, state, country };
+}
+
 function HomeContent() {
   const searchParams = useSearchParams();
   const isPaid = searchParams.get("paid") === "true";
   const paymentType = searchParams.get("type");
 
-  // State
+  // Location state
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<LocationData[]>(presetLocations);
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<LocationData | null>(null);
+
+  // Editable text fields
+  const [cityName, setCityName] = useState("");
+  const [stateName, setStateName] = useState("");
+  const [detailText, setDetailText] = useState("");
+  const [detailLineType, setDetailLineType] = useState<DetailLineType>("coordinates");
+
+  // Points/marker
+  const [showMarker, setShowMarker] = useState(false);
+
+  // Style & size
   const [selectedTheme, setSelectedTheme] = useState<Theme>((themes as Theme[])[0]);
   const [selectedSize, setSelectedSize] = useState(PRINT_SIZES[2]);
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState<"style" | "text" | "points">("style");
+
+  // Download state
   const [isDownloading, setIsDownloading] = useState(false);
   const [showSuccessBanner, setShowSuccessBanner] = useState(isPaid);
 
@@ -88,7 +134,12 @@ function HomeContent() {
     }
   }, [isPaid]);
 
-  // Search handler
+  // Format coordinates
+  const formatCoordinates = (lat: number, lng: number) => {
+    return `${Math.abs(lat).toFixed(4)}° ${lat >= 0 ? "N" : "S"} / ${Math.abs(lng).toFixed(4)}° ${lng >= 0 ? "E" : "W"}`;
+  };
+
+  // Search handler with better city parsing
   const searchLocation = async (query: string) => {
     if (!query.trim()) {
       setSearchResults(presetLocations);
@@ -112,15 +163,21 @@ function HomeContent() {
       if (response.ok) {
         const data = await response.json();
         const mapboxResults: LocationData[] = data.features.map(
-          (feature: { id: string; place_name: string; text: string; center: [number, number]; context?: Array<{ id: string; text: string }> }) => {
-            const stateContext = feature.context?.find((c) => c.id.startsWith("region"));
-            const countryContext = feature.context?.find((c) => c.id.startsWith("country"));
+          (feature: {
+            id: string;
+            place_name: string;
+            text: string;
+            center: [number, number];
+            place_type?: string[];
+            context?: Array<{ id: string; text: string; short_code?: string }>;
+          }) => {
+            const parsed = parseCityName(feature);
             return {
               id: feature.id,
-              name: feature.text,
-              displayName: feature.place_name.split(",")[0],
-              state: stateContext?.text,
-              country: countryContext?.text,
+              name: parsed.city,
+              displayName: parsed.city,
+              state: parsed.state,
+              country: parsed.country,
               lat: feature.center[1],
               lng: feature.center[0],
               zoom: 12,
@@ -130,7 +187,7 @@ function HomeContent() {
 
         const combined = [...presetMatches];
         mapboxResults.forEach((result) => {
-          if (!combined.some((loc) => loc.name === result.name)) {
+          if (!combined.some((loc) => loc.name === result.name && loc.state === result.state)) {
             combined.push(result);
           }
         });
@@ -157,6 +214,10 @@ function HomeContent() {
     setSelectedLocation(location);
     setSearchQuery(location.displayName);
     setShowDropdown(false);
+    // Set default text values from location
+    setCityName(location.name);
+    setStateName(location.state || location.country || "");
+    setDetailText(formatCoordinates(location.lat, location.lng));
   };
 
   // Download handler
@@ -172,10 +233,10 @@ function HomeContent() {
           center: [selectedLocation.lng, selectedLocation.lat],
           zoom: selectedLocation.zoom,
           themeId: selectedTheme.id,
-          cityName: selectedLocation.name,
-          stateName: selectedLocation.state || selectedLocation.country || "",
-          coordinates: `${Math.abs(selectedLocation.lat).toFixed(4)}° ${selectedLocation.lat >= 0 ? "N" : "S"} / ${Math.abs(selectedLocation.lng).toFixed(4)}° ${selectedLocation.lng >= 0 ? "E" : "W"}`,
-          detailLineType: "coordinates",
+          cityName: cityName || selectedLocation.name,
+          stateName: stateName,
+          coordinates: detailLineType === "none" ? "" : detailText,
+          detailLineType,
           paid,
         }),
       });
@@ -184,7 +245,7 @@ function HomeContent() {
 
       const data = await response.json();
       const link = document.createElement("a");
-      link.download = `mapmarked-${selectedLocation.name.toLowerCase().replace(/\s+/g, "-")}-${selectedTheme.id}-${selectedSize.id}.jpg`;
+      link.download = `mapmarked-${(cityName || selectedLocation.name).toLowerCase().replace(/\s+/g, "-")}-${selectedTheme.id}-${selectedSize.id}.jpg`;
       link.href = data.imageDataUrl;
       document.body.appendChild(link);
       link.click();
@@ -195,9 +256,8 @@ function HomeContent() {
     } finally {
       setIsDownloading(false);
     }
-  }, [selectedLocation, selectedTheme, selectedSize]);
+  }, [selectedLocation, selectedTheme, selectedSize, cityName, stateName, detailText, detailLineType]);
 
-  // Checkout handler
   const handleCheckout = async (priceType: "single" | "subscription") => {
     try {
       const response = await fetch("/api/create-checkout", {
@@ -271,7 +331,7 @@ function HomeContent() {
                   className="aspect-[3/4] rounded-xl overflow-hidden relative group cursor-pointer"
                   style={{ backgroundColor: theme.colors.bg }}
                   onClick={() => {
-                    setSelectedLocation({
+                    const loc = {
                       id: example.city,
                       name: example.city,
                       displayName: example.city,
@@ -279,16 +339,18 @@ function HomeContent() {
                       lat: example.lat,
                       lng: example.lng,
                       zoom: 12,
-                    });
+                    };
+                    setSelectedLocation(loc);
                     setSelectedTheme(theme);
                     setSearchQuery(example.city);
+                    setCityName(example.city);
+                    setStateName(example.state);
+                    setDetailText(formatCoordinates(example.lat, example.lng));
                     scrollToTool();
                   }}
                 >
-                  {/* Placeholder map visualization */}
                   <div className="absolute inset-0 opacity-30">
                     <svg className="w-full h-full" viewBox="0 0 100 133">
-                      {/* Simplified road network pattern */}
                       <g stroke={theme.colors.text} strokeWidth="0.5" fill="none" opacity="0.6">
                         <line x1="20" y1="0" x2="20" y2="133" />
                         <line x1="50" y1="0" x2="50" y2="133" />
@@ -296,28 +358,17 @@ function HomeContent() {
                         <line x1="0" y1="30" x2="100" y2="30" />
                         <line x1="0" y1="66" x2="100" y2="66" />
                         <line x1="0" y1="100" x2="100" y2="100" />
-                        <line x1="10" y1="15" x2="90" y2="15" />
-                        <line x1="35" y1="0" x2="35" y2="50" />
-                        <line x1="65" y1="80" x2="65" y2="133" />
                       </g>
                     </svg>
                   </div>
-                  {/* City label */}
                   <div className="absolute bottom-4 left-0 right-0 text-center">
-                    <p
-                      className="text-xs font-semibold tracking-[0.2em] uppercase"
-                      style={{ color: theme.colors.text }}
-                    >
+                    <p className="text-xs font-semibold tracking-[0.2em] uppercase" style={{ color: theme.colors.text }}>
                       {example.city.split("").join(" ")}
                     </p>
-                    <p
-                      className="text-[10px] tracking-wider uppercase mt-1 opacity-70"
-                      style={{ color: theme.colors.text }}
-                    >
+                    <p className="text-[10px] tracking-wider uppercase mt-1 opacity-70" style={{ color: theme.colors.text }}>
                       {example.state}
                     </p>
                   </div>
-                  {/* Hover overlay */}
                   <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <span className="text-sm font-medium" style={{ color: theme.colors.text }}>Try this style</span>
                   </div>
@@ -336,9 +387,7 @@ function HomeContent() {
             <div className="space-y-6">
               {/* Search */}
               <div>
-                <label className="block text-sm font-medium text-neutral-400 mb-2">
-                  City or Address
-                </label>
+                <label className="block text-sm font-medium text-neutral-400 mb-2">City or Address</label>
                 <div className="relative" ref={dropdownRef}>
                   <input
                     type="text"
@@ -379,57 +428,155 @@ function HomeContent() {
                 </div>
               </div>
 
-              {/* Style Picker */}
-              <div>
-                <label className="block text-sm font-medium text-neutral-400 mb-3">Style</label>
-                <div className="grid grid-cols-5 gap-2">
-                  {(themes as Theme[]).map((theme) => (
-                    <button
-                      key={theme.id}
-                      onClick={() => setSelectedTheme(theme)}
-                      className={`aspect-[3/4] rounded-lg overflow-hidden transition-all relative group ${
-                        selectedTheme.id === theme.id
-                          ? "ring-2 ring-white ring-offset-2 ring-offset-[#0a0a0a]"
-                          : "hover:scale-105"
-                      }`}
-                      style={{ backgroundColor: theme.colors.bg }}
-                    >
-                      {/* Mini road pattern */}
-                      <svg className="absolute inset-0 w-full h-full opacity-40" viewBox="0 0 30 40">
-                        <g stroke={theme.colors.text} strokeWidth="0.5" fill="none">
-                          <line x1="10" y1="0" x2="10" y2="40" />
-                          <line x1="20" y1="0" x2="20" y2="40" />
-                          <line x1="0" y1="15" x2="30" y2="15" />
-                          <line x1="0" y1="30" x2="30" y2="30" />
-                        </g>
-                      </svg>
-                      <div className="absolute bottom-1 left-0 right-0 text-center">
-                        <span className="text-[6px] uppercase tracking-wider font-medium" style={{ color: theme.colors.text }}>
-                          {theme.id}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-                <p className="mt-2 text-sm text-neutral-500">{selectedTheme.name}</p>
+              {/* Tab Navigation */}
+              <div className="flex gap-1 p-1 bg-neutral-900 rounded-lg">
+                {(["style", "text", "points"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors capitalize ${
+                      activeTab === tab
+                        ? "bg-neutral-800 text-white"
+                        : "text-neutral-500 hover:text-white"
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                ))}
               </div>
 
-              {/* Size Dropdown */}
-              <div>
-                <label className="block text-sm font-medium text-neutral-400 mb-2">Size</label>
-                <select
-                  value={selectedSize.id}
-                  onChange={(e) => {
-                    const size = PRINT_SIZES.find((s) => s.id === e.target.value);
-                    if (size) setSelectedSize(size);
-                  }}
-                  className="w-full px-4 py-3.5 bg-neutral-900 border border-neutral-800 rounded-xl text-white focus:outline-none focus:border-neutral-600 transition-colors cursor-pointer"
-                >
-                  {PRINT_SIZES.map((size) => (
-                    <option key={size.id} value={size.id}>{size.label}</option>
-                  ))}
-                </select>
-              </div>
+              {/* Style Tab */}
+              {activeTab === "style" && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-5 gap-2">
+                    {(themes as Theme[]).map((theme) => (
+                      <button
+                        key={theme.id}
+                        onClick={() => setSelectedTheme(theme)}
+                        className={`aspect-[3/4] rounded-lg overflow-hidden transition-all relative ${
+                          selectedTheme.id === theme.id
+                            ? "ring-2 ring-white ring-offset-2 ring-offset-[#0a0a0a]"
+                            : "hover:scale-105"
+                        }`}
+                        style={{ backgroundColor: theme.colors.bg }}
+                      >
+                        <svg className="absolute inset-0 w-full h-full opacity-40" viewBox="0 0 30 40">
+                          <g stroke={theme.colors.text} strokeWidth="0.5" fill="none">
+                            <line x1="10" y1="0" x2="10" y2="40" />
+                            <line x1="20" y1="0" x2="20" y2="40" />
+                            <line x1="0" y1="15" x2="30" y2="15" />
+                            <line x1="0" y1="30" x2="30" y2="30" />
+                          </g>
+                        </svg>
+                        <div className="absolute bottom-1 left-0 right-0 text-center">
+                          <span className="text-[6px] uppercase tracking-wider font-medium" style={{ color: theme.colors.text }}>
+                            {theme.id}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-sm text-neutral-500">{selectedTheme.name}</p>
+
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-400 mb-2">Size</label>
+                    <select
+                      value={selectedSize.id}
+                      onChange={(e) => {
+                        const size = PRINT_SIZES.find((s) => s.id === e.target.value);
+                        if (size) setSelectedSize(size);
+                      }}
+                      className="w-full px-4 py-3 bg-neutral-900 border border-neutral-800 rounded-xl text-white focus:outline-none focus:border-neutral-600 transition-colors cursor-pointer"
+                    >
+                      {PRINT_SIZES.map((size) => (
+                        <option key={size.id} value={size.id}>{size.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Text Tab */}
+              {activeTab === "text" && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-400 mb-2">City Name</label>
+                    <input
+                      type="text"
+                      value={cityName}
+                      onChange={(e) => setCityName(e.target.value)}
+                      placeholder="City name..."
+                      className="w-full px-4 py-3 bg-neutral-900 border border-neutral-800 rounded-xl text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-600 transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-400 mb-2">State / Country</label>
+                    <input
+                      type="text"
+                      value={stateName}
+                      onChange={(e) => setStateName(e.target.value)}
+                      placeholder="State or country..."
+                      className="w-full px-4 py-3 bg-neutral-900 border border-neutral-800 rounded-xl text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-600 transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-400 mb-2">Detail Line</label>
+                    <div className="flex gap-2 mb-2">
+                      {(["coordinates", "none"] as const).map((type) => (
+                        <button
+                          key={type}
+                          onClick={() => setDetailLineType(type)}
+                          className={`px-3 py-1.5 text-sm rounded-lg transition-colors capitalize ${
+                            detailLineType === type
+                              ? "bg-white text-black"
+                              : "bg-neutral-800 text-neutral-400 hover:text-white"
+                          }`}
+                        >
+                          {type === "none" ? "Hide" : type}
+                        </button>
+                      ))}
+                    </div>
+                    {detailLineType !== "none" && (
+                      <input
+                        type="text"
+                        value={detailText}
+                        onChange={(e) => setDetailText(e.target.value)}
+                        placeholder="Coordinates or custom text..."
+                        className="w-full px-4 py-3 bg-neutral-900 border border-neutral-800 rounded-xl text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-600 transition-colors"
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Points Tab */}
+              {activeTab === "points" && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-neutral-900 rounded-xl border border-neutral-800">
+                    <div>
+                      <p className="font-medium">Center Marker</p>
+                      <p className="text-sm text-neutral-500">Show a pin at the map center</p>
+                    </div>
+                    <button
+                      onClick={() => setShowMarker(!showMarker)}
+                      className={`w-12 h-6 rounded-full transition-colors relative ${
+                        showMarker ? "bg-white" : "bg-neutral-700"
+                      }`}
+                    >
+                      <div
+                        className={`absolute top-1 w-4 h-4 rounded-full transition-transform ${
+                          showMarker ? "translate-x-7 bg-neutral-900" : "translate-x-1 bg-neutral-400"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  <p className="text-sm text-neutral-500">
+                    The marker will appear at the center of the map. Use &quot;Adjust position&quot; below the preview to fine-tune the location.
+                  </p>
+                </div>
+              )}
 
               {/* Download Button */}
               <div className="pt-4">
@@ -478,15 +625,18 @@ function HomeContent() {
                   theme={selectedTheme}
                   center={mapCenter}
                   zoom={mapZoom}
-                  cityName={selectedLocation.name}
-                  stateName={selectedLocation.state || selectedLocation.country || ""}
-                  detailLineType="coordinates"
+                  cityName={cityName || selectedLocation.name}
+                  stateName={stateName}
+                  detailText={detailText}
+                  detailLineType={detailLineType}
                   showSafeZone={false}
+                  showMarker={showMarker}
+                  aspectRatio={selectedSize.aspectRatio}
                 />
               ) : (
                 <div
-                  className="aspect-[3/4] w-full rounded-xl flex items-center justify-center border border-neutral-800"
-                  style={{ backgroundColor: selectedTheme.colors.bg }}
+                  className="w-full rounded-xl flex items-center justify-center border border-neutral-800 transition-all duration-300"
+                  style={{ backgroundColor: selectedTheme.colors.bg, aspectRatio: selectedSize.aspectRatio }}
                 >
                   <div className="text-center px-8">
                     <svg className="w-12 h-12 mx-auto mb-4 opacity-20" style={{ color: selectedTheme.colors.text }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -510,7 +660,6 @@ function HomeContent() {
           <p className="text-neutral-400 text-center mb-12">Remove the watermark and get clean, print-ready files</p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Free */}
             <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
               <h3 className="text-lg font-semibold mb-2">Free</h3>
               <p className="text-3xl font-bold mb-1">$0</p>
@@ -538,7 +687,6 @@ function HomeContent() {
               </button>
             </div>
 
-            {/* Single */}
             <div className="bg-neutral-900 border-2 border-white rounded-2xl p-6 relative">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-white text-black text-xs font-semibold rounded-full">
                 Most Popular
@@ -568,7 +716,6 @@ function HomeContent() {
               </button>
             </div>
 
-            {/* Unlimited */}
             <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
               <h3 className="text-lg font-semibold mb-2">Unlimited</h3>
               <p className="text-3xl font-bold mb-1">$10<span className="text-lg font-normal text-neutral-500">/mo</span></p>

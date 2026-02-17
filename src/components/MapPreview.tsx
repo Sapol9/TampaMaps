@@ -89,8 +89,9 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
   const lngDirection = displayLng >= 0 ? "E" : "W";
   const formattedCoords = `${Math.abs(displayLat).toFixed(4)}° ${latDirection} / ${Math.abs(displayLng).toFixed(4)}° ${lngDirection}`;
 
-  // Space out city name - scale font instead of wrapping
-  const spacedCityName = cityName.toUpperCase().split("").join(" ");
+  // Uppercase city name - CSS letter-spacing handles character spacing
+  // This preserves natural word boundaries (e.g., "NEW YORK" not "NEWYORK")
+  const displayCityName = cityName.toUpperCase();
 
   // Update marker
   const updateMarker = useCallback(() => {
@@ -324,13 +325,13 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
             fontFamily: "var(--font-space-grotesk), sans-serif",
             color: textColor,
             opacity: 0.95,
-            letterSpacing: "0.12em",
+            letterSpacing: "0.35em",
             marginBottom: "1.5cqw",
             fontSize: getFontSize(),
             textShadow,
           }}
         >
-          {spacedCityName}
+          {displayCityName}
         </h2>
 
         {/* Decorative Line */}

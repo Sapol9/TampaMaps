@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import themes from "@/data/themes.json";
 import locations from "@/data/locations.json";
 import type { Theme } from "@/lib/mapbox/applyTheme";
-import { type MapPreviewHandle, type DetailLineType } from "@/components/MapPreview";
+import { type MapPreviewHandle, type DetailLineType, type TextLayout } from "@/components/MapPreview";
 
 const MapPreview = dynamic(() => import("@/components/MapPreview"), {
   ssr: false,
@@ -21,11 +21,13 @@ interface LocationData {
   id: string;
   name: string;
   displayName: string;
+  fullAddress?: string;
   state?: string;
   country?: string;
   lat: number;
   lng: number;
   zoom: number;
+  isAddress?: boolean;
 }
 
 const PRINT_SIZES = [
@@ -36,10 +38,11 @@ const PRINT_SIZES = [
 ];
 
 const HERO_EXAMPLES = [
-  { city: "New York", state: "NY", theme: "obsidian", lat: 40.7128, lng: -74.006 },
-  { city: "Paris", state: "France", theme: "parchment", lat: 48.8566, lng: 2.3522 },
-  { city: "Tokyo", state: "Japan", theme: "cobalt", lat: 35.6762, lng: 139.6503 },
-  { city: "Tampa", state: "FL", theme: "coastal", lat: 27.9506, lng: -82.4572 },
+  { city: "New York", state: "NY", theme: "obsidian", lat: 40.7128, lng: -74.006, image: "/hero/new-york-obsidian.jpg" },
+  { city: "Paris", state: "France", theme: "parchment", lat: 48.8566, lng: 2.3522, image: "/hero/paris-parchment.jpg" },
+  { city: "Tokyo", state: "Japan", theme: "cobalt", lat: 35.6762, lng: 139.6503, image: "/hero/tokyo-cobalt.jpg" },
+  { city: "Tampa", state: "FL", theme: "coastal", lat: 27.9506, lng: -82.4572, image: "/hero/tampa-coastal.jpg" },
+  { city: "Austin", state: "TX", theme: "copper", lat: 30.2672, lng: -97.7431, image: "/hero/austin-copper.jpg" },
 ];
 
 const presetLocations: LocationData[] = Object.values(locations);
@@ -93,6 +96,9 @@ function HomeContent() {
   const [stateName, setStateName] = useState("");
   const [detailText, setDetailText] = useState("");
   const [detailLineType, setDetailLineType] = useState<DetailLineType>("coordinates");
+
+  // Text layout
+  const [textLayout, setTextLayout] = useState<TextLayout>("classic");
 
   // Points/marker
   const [showMarker, setShowMarker] = useState(false);
@@ -157,7 +163,7 @@ function HomeContent() {
       );
 
       const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&types=place,locality,neighborhood,address&limit=5`
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&types=place,locality,neighborhood,address,poi&limit=5`
       );
 
       if (response.ok) {
@@ -172,15 +178,18 @@ function HomeContent() {
             context?: Array<{ id: string; text: string; short_code?: string }>;
           }) => {
             const parsed = parseCityName(feature);
+            const isAddress = feature.place_type?.includes("address") || feature.place_type?.includes("poi");
             return {
               id: feature.id,
               name: parsed.city,
-              displayName: parsed.city,
+              displayName: isAddress ? feature.text : parsed.city,
+              fullAddress: feature.place_name,
               state: parsed.state,
               country: parsed.country,
               lat: feature.center[1],
               lng: feature.center[0],
-              zoom: 12,
+              zoom: isAddress ? 15 : 12,
+              isAddress,
             };
           }
         );
@@ -212,7 +221,7 @@ function HomeContent() {
 
   const handleSelectLocation = (location: LocationData) => {
     setSelectedLocation(location);
-    setSearchQuery(location.displayName);
+    setSearchQuery(location.isAddress ? (location.fullAddress || location.displayName) : location.displayName);
     setShowDropdown(false);
     // Set default text values from location
     setCityName(location.name);
@@ -322,7 +331,7 @@ function HomeContent() {
           </div>
 
           {/* Example Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 max-w-5xl mx-auto">
             {HERO_EXAMPLES.map((example) => {
               const theme = (themes as Theme[]).find((t) => t.id === example.theme) || (themes as Theme[])[0];
               return (
@@ -349,6 +358,17 @@ function HomeContent() {
                     scrollToTool();
                   }}
                 >
+                  {/* Actual rendered image */}
+                  <img
+                    src={example.image}
+                    alt={`${example.city} map in ${example.theme} style`}
+                    className="absolute inset-0 w-full h-full object-cover"
+                    onError={(e) => {
+                      // Hide image on error, fallback to placeholder
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                  {/* Fallback placeholder */}
                   <div className="absolute inset-0 opacity-30">
                     <svg className="w-full h-full" viewBox="0 0 100 133">
                       <g stroke={theme.colors.text} strokeWidth="0.5" fill="none" opacity="0.6">
@@ -417,10 +437,16 @@ function HomeContent() {
                           <svg className="w-4 h-4 text-neutral-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                           </svg>
-                          <span className="text-white">
-                            {location.displayName}
-                            {location.state && <span className="text-neutral-500">, {location.state}</span>}
-                          </span>
+                          <div className="flex-1 min-w-0">
+                            {location.isAddress ? (
+                              <span className="text-white truncate block">{location.fullAddress}</span>
+                            ) : (
+                              <span className="text-white">
+                                {location.displayName}
+                                {location.state && <span className="text-neutral-500">, {location.state}</span>}
+                              </span>
+                            )}
+                          </div>
                         </button>
                       ))}
                     </div>
@@ -499,6 +525,49 @@ function HomeContent() {
               {/* Text Tab */}
               {activeTab === "text" && (
                 <div className="space-y-4">
+                  {/* Layout Toggle */}
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-400 mb-2">Layout</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => setTextLayout("classic")}
+                        className={`px-4 py-3 rounded-xl border transition-all flex flex-col items-center gap-1.5 ${
+                          textLayout === "classic"
+                            ? "border-white bg-white/5"
+                            : "border-neutral-800 hover:border-neutral-700"
+                        }`}
+                      >
+                        <div className="w-full aspect-[3/4] rounded bg-neutral-800 relative overflow-hidden">
+                          <div className="absolute inset-x-0 top-0 bottom-[25%] bg-neutral-700" />
+                          <div className="absolute inset-x-0 bottom-0 h-[25%] bg-neutral-800 flex items-center justify-center">
+                            <div className="w-6 h-0.5 bg-neutral-500" />
+                          </div>
+                        </div>
+                        <span className={`text-xs font-medium ${textLayout === "classic" ? "text-white" : "text-neutral-500"}`}>
+                          Classic
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => setTextLayout("overlay")}
+                        className={`px-4 py-3 rounded-xl border transition-all flex flex-col items-center gap-1.5 ${
+                          textLayout === "overlay"
+                            ? "border-white bg-white/5"
+                            : "border-neutral-800 hover:border-neutral-700"
+                        }`}
+                      >
+                        <div className="w-full aspect-[3/4] rounded bg-neutral-700 relative overflow-hidden">
+                          <div className="absolute inset-x-0 bottom-0 h-[35%] bg-gradient-to-t from-neutral-900 to-transparent" />
+                          <div className="absolute inset-x-0 bottom-2 flex items-center justify-center">
+                            <div className="w-6 h-0.5 bg-neutral-400" />
+                          </div>
+                        </div>
+                        <span className={`text-xs font-medium ${textLayout === "overlay" ? "text-white" : "text-neutral-500"}`}>
+                          Overlay
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-neutral-400 mb-2">City Name</label>
                     <input
@@ -629,6 +698,7 @@ function HomeContent() {
                   stateName={stateName}
                   detailText={detailText}
                   detailLineType={detailLineType}
+                  textLayout={textLayout}
                   showSafeZone={false}
                   showMarker={showMarker}
                   aspectRatio={selectedSize.aspectRatio}

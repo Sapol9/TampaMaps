@@ -23,6 +23,7 @@ interface FocusPoint {
 }
 
 type DetailLineType = "coordinates" | "address" | "none";
+type TextLayout = "classic" | "overlay";
 
 interface MapPreviewProps {
   theme: Theme;
@@ -33,6 +34,7 @@ interface MapPreviewProps {
   detailText?: string;
   focusPoint?: FocusPoint | null;
   detailLineType?: DetailLineType;
+  textLayout?: TextLayout;
   showSafeZone?: boolean;
   showTextOverlay?: boolean;
   showMarker?: boolean;
@@ -65,6 +67,7 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
   detailText,
   focusPoint,
   detailLineType = "coordinates",
+  textLayout = "classic",
   showSafeZone = false,
   showTextOverlay = true,
   showMarker = false,
@@ -129,24 +132,6 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
     }
   }, [showMarker, focusPoint, center, theme.colors.text]);
 
-  const setMapInteractive = useCallback((interactive: boolean) => {
-    if (!map.current) return;
-    if (interactive) {
-      map.current.dragPan.enable();
-      map.current.scrollZoom.enable();
-      map.current.boxZoom.enable();
-      map.current.doubleClickZoom.enable();
-      map.current.touchZoomRotate.enable();
-      map.current.touchZoomRotate.disableRotation();
-    } else {
-      map.current.dragPan.disable();
-      map.current.scrollZoom.disable();
-      map.current.boxZoom.disable();
-      map.current.doubleClickZoom.disable();
-      map.current.touchZoomRotate.disable();
-    }
-  }, []);
-
   useEffect(() => {
     if (!mapContainer.current) return;
 
@@ -165,7 +150,7 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
       style: customStyle,
       center: actualCenter,
       zoom: zoom,
-      interactive: false,
+      interactive: true,
       attributionControl: false,
       logoPosition: "bottom-right",
       preserveDrawingBuffer: true,
@@ -173,6 +158,10 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
       dragRotate: false,
       touchPitch: false,
     });
+
+    // Disable rotation but keep pan and zoom
+    map.current.dragRotate.disable();
+    map.current.touchZoomRotate.disableRotation();
 
     map.current.on("load", () => {
       setIsLoading(false);
@@ -214,20 +203,15 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
     lockedCenter.current = actualCenter;
     setIsManualMode(false);
     setHasMovedInManualMode(false);
-    setMapInteractive(false);
-  }, [center[0], center[1], focusPoint?.lat, focusPoint?.lng, zoom, isLoading, setMapInteractive, updateMarker]);
+  }, [center[0], center[1], focusPoint?.lat, focusPoint?.lng, zoom, isLoading, updateMarker]);
 
   useEffect(() => {
     if (!isLoading) updateMarker();
   }, [showMarker, isLoading, updateMarker]);
 
   const handleToggleManualMode = () => {
-    if (isManualMode) {
-      setMapInteractive(false);
-      setIsManualMode(false);
-    } else {
-      setMapInteractive(true);
-      setIsManualMode(true);
+    setIsManualMode(!isManualMode);
+    if (!isManualMode) {
       setHasMovedInManualMode(false);
     }
   };
@@ -236,6 +220,16 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
     if (!map.current) return;
     map.current.flyTo({ center: lockedCenter.current, zoom: zoom, duration: 800 });
     setHasMovedInManualMode(false);
+  };
+
+  const handleZoomIn = () => {
+    if (!map.current) return;
+    map.current.zoomIn({ duration: 300 });
+  };
+
+  const handleZoomOut = () => {
+    if (!map.current) return;
+    map.current.zoomOut({ duration: 300 });
   };
 
   const waitForIdle = useCallback((): Promise<void> => {
@@ -312,11 +306,76 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
     return "8cqw";
   };
 
+  // Text content component - shared between both layouts
+  const TextContent = ({ padding = true }: { padding?: boolean }) => (
+    <div className="text-center" style={padding ? { paddingTop: "3cqw", paddingBottom: "2cqw" } : {}}>
+      {/* City Name */}
+      <h2
+        className="font-semibold leading-none whitespace-nowrap"
+        style={{
+          fontFamily: "var(--font-space-grotesk), sans-serif",
+          color: theme.colors.text,
+          opacity: 0.95,
+          letterSpacing: "0.12em",
+          marginBottom: "1.5cqw",
+          fontSize: getFontSize(),
+        }}
+      >
+        {spacedCityName}
+      </h2>
+
+      {/* Decorative Line */}
+      <div
+        className="mx-auto"
+        style={{
+          width: "10cqw",
+          height: "2px",
+          marginBottom: "1.5cqw",
+          backgroundColor: theme.colors.text,
+          opacity: 0.8,
+        }}
+      />
+
+      {/* State Name */}
+      {stateName && (
+        <p
+          className="font-light uppercase whitespace-nowrap"
+          style={{
+            fontFamily: "var(--font-space-grotesk), sans-serif",
+            color: theme.colors.text,
+            opacity: 0.85,
+            letterSpacing: "0.15em",
+            fontSize: "3cqw",
+            marginBottom: detailLineType !== "none" ? "0.8cqw" : "0",
+          }}
+        >
+          {stateName.toUpperCase()}
+        </p>
+      )}
+
+      {/* Detail Line */}
+      {detailLineType !== "none" && (
+        <p
+          className="font-light whitespace-nowrap"
+          style={{
+            fontFamily: "var(--font-space-grotesk), sans-serif",
+            color: theme.colors.text,
+            opacity: 0.6,
+            letterSpacing: "0.08em",
+            fontSize: "2.2cqw",
+          }}
+        >
+          {detailText || formattedCoords}
+        </p>
+      )}
+    </div>
+  );
+
   return (
     <div className="relative w-full">
       <div
         ref={previewContainer}
-        className="w-full relative rounded-xl overflow-hidden"
+        className="w-full relative rounded-xl overflow-hidden flex flex-col"
         style={{
           aspectRatio,
           backgroundColor: theme.colors.bg,
@@ -324,138 +383,123 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
           containerType: "inline-size",
         }}
       >
-        {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center z-20" style={{ backgroundColor: theme.colors.bg }}>
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: `${theme.colors.text}30`, borderTopColor: theme.colors.text }} />
-              <p className="text-sm" style={{ color: theme.colors.text }}>Loading map...</p>
-            </div>
-          </div>
-        )}
-
-        {error && (
-          <div className="absolute inset-0 flex items-center justify-center z-20" style={{ backgroundColor: theme.colors.bg }}>
-            <div className="text-center px-4">
-              <p className="text-sm text-red-500 mb-2">{error}</p>
-            </div>
-          </div>
-        )}
-
-        <div ref={mapContainer} className="w-full h-full" />
-
-        <CrosshairOverlay visible={isManualMode} color={theme.colors.text} />
-
-        {isManualMode && hasMovedInManualMode && !isLoading && !error && (
-          <button
-            onClick={handleResetToCenter}
-            className="absolute z-20 top-2 left-2 px-3 py-1.5 rounded-lg bg-black/80 hover:bg-black transition-colors shadow-sm text-xs font-medium text-white flex items-center gap-1.5"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Reset
-          </button>
-        )}
-
-        {/* Text overlay with gradient background */}
-        {showTextOverlay && !isLoading && !error && (
-          <div
-            className="absolute left-0 right-0 bottom-0 pointer-events-none z-20"
-            style={{
-              paddingBottom: `${SAFE_ZONE_VERTICAL_PERCENT}%`,
-              paddingLeft: `${SAFE_ZONE_HORIZONTAL_PERCENT}%`,
-              paddingRight: `${SAFE_ZONE_HORIZONTAL_PERCENT}%`,
-            }}
-          >
-            {/* Gradient overlay for text readability */}
-            <div
-              className="absolute inset-0"
-              style={{
-                background: `linear-gradient(to top, ${theme.colors.bg}ee 0%, ${theme.colors.bg}cc 30%, ${theme.colors.bg}66 60%, transparent 100%)`,
-              }}
-            />
-
-            <div className="relative text-center" style={{ paddingTop: "4cqw", paddingBottom: "2cqw" }}>
-              {/* City Name */}
-              <h2
-                className="font-semibold leading-none whitespace-nowrap"
-                style={{
-                  fontFamily: "var(--font-space-grotesk), sans-serif",
-                  color: theme.colors.text,
-                  opacity: 0.95,
-                  letterSpacing: "0.12em",
-                  marginBottom: "1.5cqw",
-                  fontSize: getFontSize(),
-                }}
-              >
-                {spacedCityName}
-              </h2>
-
-              {/* Decorative Line */}
-              <div
-                className="mx-auto"
-                style={{
-                  width: "10cqw",
-                  height: "2px",
-                  marginBottom: "1.5cqw",
-                  backgroundColor: theme.colors.text,
-                  opacity: 0.8,
-                }}
-              />
-
-              {/* State Name */}
-              {stateName && (
-                <p
-                  className="font-light uppercase whitespace-nowrap"
-                  style={{
-                    fontFamily: "var(--font-space-grotesk), sans-serif",
-                    color: theme.colors.text,
-                    opacity: 0.85,
-                    letterSpacing: "0.15em",
-                    fontSize: "3cqw",
-                    marginBottom: detailLineType !== "none" ? "0.8cqw" : "0",
-                  }}
-                >
-                  {stateName.toUpperCase()}
-                </p>
-              )}
-
-              {/* Detail Line */}
-              {detailLineType !== "none" && (
-                <p
-                  className="font-light whitespace-nowrap"
-                  style={{
-                    fontFamily: "var(--font-space-grotesk), sans-serif",
-                    color: theme.colors.text,
-                    opacity: 0.6,
-                    letterSpacing: "0.08em",
-                    fontSize: "2.2cqw",
-                  }}
-                >
-                  {detailText || formattedCoords}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-
-        <SafeZoneOverlay visible={showSafeZone} />
-
-        {isCapturing && (
-          <div className="absolute inset-0 z-40 flex flex-col items-center justify-center backdrop-blur-md bg-black/50">
-            <div className="relative w-12 h-12 mb-4">
-              <div className="absolute inset-0 border-2 border-white/20 rounded-full" />
-              <div className="absolute inset-0 animate-spin">
-                <svg viewBox="0 0 48 48" className="w-full h-full">
-                  <circle cx="24" cy="24" r="22" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeDasharray="35 105" />
-                </svg>
+        {/* Map Section */}
+        <div className="relative" style={{ flex: textLayout === "classic" ? "1 1 0%" : "1 1 100%", minHeight: 0 }}>
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center z-20" style={{ backgroundColor: theme.colors.bg }}>
+              <div className="flex flex-col items-center gap-2">
+                <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: `${theme.colors.text}30`, borderTopColor: theme.colors.text }} />
+                <p className="text-sm" style={{ color: theme.colors.text }}>Loading map...</p>
               </div>
             </div>
-            <p className="text-sm font-light tracking-wide text-white/90">Generating print-ready image...</p>
+          )}
+
+          {error && (
+            <div className="absolute inset-0 flex items-center justify-center z-20" style={{ backgroundColor: theme.colors.bg }}>
+              <div className="text-center px-4">
+                <p className="text-sm text-red-500 mb-2">{error}</p>
+              </div>
+            </div>
+          )}
+
+          <div ref={mapContainer} className="w-full h-full" />
+
+          <CrosshairOverlay visible={isManualMode} color={theme.colors.text} />
+
+          {/* Zoom Controls */}
+          {!isLoading && !error && (
+            <div className="absolute z-20 top-2 right-2 flex flex-col gap-1">
+              <button
+                onClick={handleZoomIn}
+                className="w-8 h-8 rounded-lg bg-black/70 hover:bg-black/90 transition-colors flex items-center justify-center text-white"
+                title="Zoom in"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m6-6H6" />
+                </svg>
+              </button>
+              <button
+                onClick={handleZoomOut}
+                className="w-8 h-8 rounded-lg bg-black/70 hover:bg-black/90 transition-colors flex items-center justify-center text-white"
+                title="Zoom out"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 12H6" />
+                </svg>
+              </button>
+            </div>
+          )}
+
+          {isManualMode && hasMovedInManualMode && !isLoading && !error && (
+            <button
+              onClick={handleResetToCenter}
+              className="absolute z-20 top-2 left-2 px-3 py-1.5 rounded-lg bg-black/80 hover:bg-black transition-colors shadow-sm text-xs font-medium text-white flex items-center gap-1.5"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Reset
+            </button>
+          )}
+
+          {/* Overlay mode: Text with gradient background */}
+          {textLayout === "overlay" && showTextOverlay && !isLoading && !error && (
+            <div
+              className="absolute left-0 right-0 bottom-0 pointer-events-none z-20"
+              style={{
+                paddingBottom: `${SAFE_ZONE_VERTICAL_PERCENT}%`,
+                paddingLeft: `${SAFE_ZONE_HORIZONTAL_PERCENT}%`,
+                paddingRight: `${SAFE_ZONE_HORIZONTAL_PERCENT}%`,
+              }}
+            >
+              {/* Gradient overlay for text readability */}
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: `linear-gradient(to top, ${theme.colors.bg}ee 0%, ${theme.colors.bg}cc 30%, ${theme.colors.bg}66 60%, transparent 100%)`,
+                }}
+              />
+              <div className="relative">
+                <TextContent padding />
+              </div>
+            </div>
+          )}
+
+          <SafeZoneOverlay visible={showSafeZone} />
+
+          {isCapturing && (
+            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center backdrop-blur-md bg-black/50">
+              <div className="relative w-12 h-12 mb-4">
+                <div className="absolute inset-0 border-2 border-white/20 rounded-full" />
+                <div className="absolute inset-0 animate-spin">
+                  <svg viewBox="0 0 48 48" className="w-full h-full">
+                    <circle cx="24" cy="24" r="22" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeDasharray="35 105" />
+                  </svg>
+                </div>
+              </div>
+              <p className="text-sm font-light tracking-wide text-white/90">Generating print-ready image...</p>
+            </div>
+          )}
+
+          <RenderingOverlay isRendering={isRendering} duration={2000} onComplete={onRenderComplete} themeName={theme.name} />
+        </div>
+
+        {/* Classic mode: Solid text bar at bottom */}
+        {textLayout === "classic" && showTextOverlay && !isLoading && !error && (
+          <div
+            className="flex-shrink-0"
+            style={{
+              backgroundColor: theme.colors.bg,
+              borderTop: `1px solid ${theme.colors.text}15`,
+              paddingLeft: `${SAFE_ZONE_HORIZONTAL_PERCENT}%`,
+              paddingRight: `${SAFE_ZONE_HORIZONTAL_PERCENT}%`,
+              paddingTop: "3cqw",
+              paddingBottom: "4cqw",
+            }}
+          >
+            <TextContent padding={false} />
           </div>
         )}
-
-        <RenderingOverlay isRendering={isRendering} duration={2000} onComplete={onRenderComplete} themeName={theme.name} />
       </div>
 
       {/* Attribution outside the preview */}
@@ -489,4 +533,4 @@ const MapPreview = forwardRef<MapPreviewHandle, MapPreviewProps>(function MapPre
 });
 
 export default MapPreview;
-export type { MapPreviewProps, FocusPoint, DetailLineType };
+export type { MapPreviewProps, FocusPoint, DetailLineType, TextLayout };

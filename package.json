@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "generate-gallery": "node scripts/generate-gallery.mjs"
+    "generate-gallery": "node scripts/generate-gallery.mjs",
+    "generate-hero": "node scripts/generate-hero-images.js",
+    "generate-hero:simple": "node scripts/generate-hero-simple.js"
   },
   "dependencies": {
     "@stripe/stripe-js": "^8.7.0",

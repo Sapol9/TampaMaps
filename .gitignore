@@ -20,6 +20,9 @@
 # production
 /build
 
+# batch render output (large images for Etsy/Pinterest)
+/output
+
 # misc
 .DS_Store
 *.pem

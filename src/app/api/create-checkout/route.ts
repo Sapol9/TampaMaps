@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
           },
         ],
         mode: "subscription",
-        success_url: `${returnUrl || baseUrl}?paid=true&type=subscription`,
+        success_url: `${returnUrl || baseUrl}?paid=true&type=subscription&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${returnUrl || baseUrl}?canceled=true`,
         metadata: {
           type: "subscription",
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
           },
         ],
         mode: "payment",
-        success_url: `${returnUrl || baseUrl}?paid=true&type=single`,
+        success_url: `${returnUrl || baseUrl}?paid=true&type=single&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${returnUrl || baseUrl}?canceled=true`,
         metadata: {
           type: "single",

@@ -83,6 +83,7 @@ function HomeContent() {
   const searchParams = useSearchParams();
   const isPaid = searchParams.get("paid") === "true";
   const paymentType = searchParams.get("type");
+  const stripeSessionId = searchParams.get("session_id"); // For payment verification
 
   // Location state
   const [searchQuery, setSearchQuery] = useState("");
@@ -231,7 +232,9 @@ function HomeContent() {
   };
 
   // Download handler
-  const handleDownload = useCallback(async (paid: boolean) => {
+  // SECURITY: Payment verification happens server-side via stripeSessionId
+  // The isPaid flag is only used for UI (green button), not for watermark control
+  const handleDownload = useCallback(async (sessionId: string | null) => {
     if (!selectedLocation) return;
     setIsDownloading(true);
 
@@ -247,7 +250,7 @@ function HomeContent() {
           stateName: stateName,
           coordinates: detailLineType === "none" ? "" : detailText,
           detailLineType,
-          paid,
+          stripeSessionId: sessionId || undefined, // Server verifies payment via Stripe API
         }),
       });
 
@@ -680,7 +683,7 @@ function HomeContent() {
               {/* Download Button */}
               <div className="pt-4">
                 <button
-                  onClick={() => handleDownload(isPaid)}
+                  onClick={() => handleDownload(stripeSessionId)}
                   disabled={!selectedLocation || isDownloading}
                   className={`w-full py-4 rounded-xl font-semibold text-lg transition-all flex items-center justify-center gap-3 ${
                     selectedLocation && !isDownloading
@@ -780,7 +783,7 @@ function HomeContent() {
                 </li>
               </ul>
               <button
-                onClick={() => selectedLocation && handleDownload(false)}
+                onClick={() => selectedLocation && handleDownload(null)}
                 disabled={!selectedLocation}
                 className="w-full py-3 rounded-xl font-medium border border-neutral-700 text-neutral-300 hover:bg-neutral-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >

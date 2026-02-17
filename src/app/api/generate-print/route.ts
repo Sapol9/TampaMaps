@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyPayment } from "@/lib/paymentVerification";
 
 /**
  * Proxy to the external MapMarked Render Server
  *
  * The render server uses Puppeteer with real WebGL to capture exact map previews.
  * This proxy keeps the RENDER_SECRET server-side and handles job polling.
+ *
+ * SECURITY: Payment verification is done server-side via Stripe API.
+ * The client sends a stripeSessionId which is verified before generating
+ * watermark-free images. Never trust client-side `paid` flags.
  */
 
 const RENDER_SERVER_URL = process.env.RENDER_SERVER_URL;
@@ -27,7 +32,7 @@ interface GeneratePrintRequest {
     address?: string;
   };
   detailLineType: "coordinates" | "address" | "none";
-  paid?: boolean;
+  stripeSessionId?: string; // For payment verification - replaces trusted `paid` flag
 }
 
 interface RenderJobResponse {
@@ -125,11 +130,22 @@ export async function POST(request: NextRequest) {
       coordinates,
       focusPoint,
       detailLineType,
-      paid = true, // Default to paid (no watermark) for now
+      stripeSessionId,
     } = body;
 
+    // SECURITY: Verify payment server-side via Stripe API
+    // Never trust client-provided `paid` flags
+    let paid = false;
+    if (stripeSessionId) {
+      console.log("[generate-print] Verifying payment for session:", stripeSessionId);
+      paid = await verifyPayment(stripeSessionId);
+      console.log("[generate-print] Payment verified:", paid);
+    } else {
+      console.log("[generate-print] No session ID provided - watermarked download");
+    }
+
     console.log("[generate-print] Submitting job to render server...");
-    console.log("[generate-print] Theme:", themeId, "Center:", center, "Zoom:", zoom);
+    console.log("[generate-print] Theme:", themeId, "Center:", center, "Zoom:", zoom, "Paid:", paid);
 
     // Submit job to render server
     const { jobId } = await submitRenderJob({
